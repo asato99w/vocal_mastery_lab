@@ -1,0 +1,17 @@
+# Core ML Conversion
+coremltools>=8.0
+onnx>=1.15.0
+onnxruntime>=1.16.0
+
+# Audio Processing
+numpy>=1.24.0
+scipy>=1.11.0
+librosa>=0.10.0
+
+# Model Download & Management
+requests>=2.31.0
+tqdm>=4.66.0
+
+# Testing & Evaluation
+pytest>=7.4.0
+mir_eval>=0.7
