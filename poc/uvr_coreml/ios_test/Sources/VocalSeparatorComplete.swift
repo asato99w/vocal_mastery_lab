@@ -14,8 +14,8 @@ class VocalSeparatorComplete {
     /// CoreMLモデル
     private let model: MLModel
 
-    /// STFTプロセッサ
-    private let stftProcessor: STFTProcessor
+    /// STFTプロセッサ (V2: vDSP_DFT with librosa compatibility)
+    private let stftProcessor: STFTProcessorV2
 
     /// モデル設定
     private let configuration: ModelConfiguration
@@ -81,11 +81,10 @@ class VocalSeparatorComplete {
 
         self.configuration = configuration
 
-        // STFTプロセッサ初期化
-        self.stftProcessor = STFTProcessor(
+        // STFTプロセッサ初期化 (V2: vDSP_DFT with librosa compatibility)
+        self.stftProcessor = STFTProcessorV2(
             fftSize: configuration.fftSize,
-            hopSize: configuration.hopSize,
-            windowType: .hann
+            hopSize: configuration.hopSize
         )
 
         print("✅ VocalSeparatorComplete初期化完了")
@@ -190,9 +189,9 @@ class VocalSeparatorComplete {
 
     /// CoreML推論実行（チャンク処理）
     private func predictMasks(
-        leftSTFT: STFTProcessor.SpectrogramData,
-        rightSTFT: STFTProcessor.SpectrogramData
-    ) throws -> (vocal: STFTProcessor.SpectrogramData, instrumental: STFTProcessor.SpectrogramData) {
+        leftSTFT: STFTProcessorV2.SpectrogramData,
+        rightSTFT: STFTProcessorV2.SpectrogramData
+    ) throws -> (vocal: STFTProcessorV2.SpectrogramData, instrumental: STFTProcessorV2.SpectrogramData) {
 
         let timeFrames = leftSTFT.timeFrames
         let freqBins = min(leftSTFT.frequencyBins, 2048)  // モデル期待値
@@ -226,7 +225,7 @@ class VocalSeparatorComplete {
             let instrumentalChunk = extractChannelMask(output, channel: 1, actualSize: actualSize)
 
             vocalMasks.append(contentsOf: vocalChunk)
-            instrumentalMasks.append(contentsOf: vocalChunk)  // 簡易版
+            instrumentalMasks.append(contentsOf: instrumentalChunk)
 
             if (chunkIndex + 1) % 10 == 0 {
                 print("   進捗: \(chunkIndex + 1)/\(numChunks)")
@@ -241,11 +240,11 @@ class VocalSeparatorComplete {
         let instrumentalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)
 
         return (
-            STFTProcessor.SpectrogramData(
+            STFTProcessorV2.SpectrogramData(
                 magnitude: vocalMagnitude,
                 phase: vocalPhase
             ),
-            STFTProcessor.SpectrogramData(
+            STFTProcessorV2.SpectrogramData(
                 magnitude: instrumentalMagnitude,
                 phase: instrumentalPhase
             )
@@ -254,8 +253,8 @@ class VocalSeparatorComplete {
 
     /// チャンク抽出
     private func extractChunk(
-        leftSTFT: STFTProcessor.SpectrogramData,
-        rightSTFT: STFTProcessor.SpectrogramData,
+        leftSTFT: STFTProcessorV2.SpectrogramData,
+        rightSTFT: STFTProcessorV2.SpectrogramData,
         startFrame: Int,
         endFrame: Int,
         targetSize: Int
@@ -318,6 +317,13 @@ class VocalSeparatorComplete {
             mask.append(frame)
         }
 
+        // DEBUG: 最初のチャンクの最初のフレームで値をチェック
+        if mask.count > 0 && mask[0].count > 0 {
+            let firstValue = mask[0][0]
+            let avgValue = mask[0].reduce(0, +) / Float(mask[0].count)
+            print("      DEBUG extractChannelMask: channel=\(channel), first=[0][0]=\(firstValue), avg=\(avgValue)")
+        }
+
         return mask
     }
 
@@ -370,9 +376,9 @@ class VocalSeparatorComplete {
 
     /// 複素数マスク適用
     private func applyComplexMask(
-        spectrogram: STFTProcessor.SpectrogramData,
-        mask: STFTProcessor.SpectrogramData
-    ) -> STFTProcessor.SpectrogramData {
+        spectrogram: STFTProcessorV2.SpectrogramData,
+        mask: STFTProcessorV2.SpectrogramData
+    ) -> STFTProcessorV2.SpectrogramData {
 
         let freqBins = min(spectrogram.frequencyBins, mask.frequencyBins)
         let timeFrames = min(spectrogram.timeFrames, mask.timeFrames)
@@ -394,7 +400,7 @@ class VocalSeparatorComplete {
             }
         }
 
-        return STFTProcessor.SpectrogramData(
+        return STFTProcessorV2.SpectrogramData(
             magnitude: maskedMagnitude,
             phase: maskedPhase
         )

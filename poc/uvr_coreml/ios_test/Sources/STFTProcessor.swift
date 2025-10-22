@@ -5,6 +5,8 @@ import Accelerate
 ///
 /// vDSP/Accelerate Frameworkを使用した高速STFT/iSTFT実装
 /// UVR MDX-Net音源分離用に最適化
+///
+/// 修正版: 正しいvDSP_fft_zrip（実数FFT）を使用
 class STFTProcessor {
 
     // MARK: - Properties
@@ -18,11 +20,14 @@ class STFTProcessor {
     /// 窓関数タイプ
     private let windowType: WindowType
 
-    /// FFTセットアップ
-    private var fftSetup: vDSP_DFT_Setup?
+    /// FFTセットアップ (実数FFT用)
+    private var fftSetup: FFTSetup?
 
     /// 窓関数バッファ
     private var windowBuffer: [Float]
+
+    /// log2(fftSize)
+    private let log2n: vDSP_Length
 
     /// 周波数ビン数
     var frequencyBins: Int {
@@ -56,24 +61,32 @@ class STFTProcessor {
     /// イニシャライザ
     ///
     /// - Parameters:
-    ///   - fftSize: FFTサイズ（デフォルト: 4096）
+    ///   - fftSize: FFTサイズ（デフォルト: 4096、2の累乗である必要がある）
     ///   - hopSize: ホップサイズ（デフォルト: 1024 = fftSize/4）
     ///   - windowType: 窓関数タイプ（デフォルト: hann）
     init(fftSize: Int = 4096, hopSize: Int = 1024, windowType: WindowType = .hann) {
         self.fftSize = fftSize
         self.hopSize = hopSize
         self.windowType = windowType
+        self.log2n = vDSP_Length(log2(Float(fftSize)))
+
+        // FFTサイズが2の累乗であることを確認
+        assert(fftSize == (1 << Int(log2n)), "fftSize must be a power of 2")
 
         // 窓関数生成
         self.windowBuffer = [Float](repeating: 0, count: fftSize)
-        vDSP_blkman_window(&self.windowBuffer, vDSP_Length(fftSize), 0)
 
-        // FFTセットアップ作成
-        self.fftSetup = vDSP_DFT_zop_CreateSetup(
-            nil,
-            vDSP_Length(fftSize),
-            .FORWARD
-        )
+        switch windowType {
+        case .hann:
+            vDSP_hann_window(&self.windowBuffer, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
+        case .hamming:
+            vDSP_hamm_window(&self.windowBuffer, vDSP_Length(fftSize), 0)
+        case .blackman:
+            vDSP_blkman_window(&self.windowBuffer, vDSP_Length(fftSize), 0)
+        }
+
+        // 実数FFT用セットアップ作成
+        self.fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))
 
         guard fftSetup != nil else {
             fatalError("Failed to create FFT setup")
@@ -82,7 +95,7 @@ class STFTProcessor {
 
     deinit {
         if let setup = fftSetup {
-            vDSP_DFT_DestroySetup(setup)
+            vDSP_destroy_fftsetup(setup)
         }
     }
 
@@ -216,33 +229,63 @@ class STFTProcessor {
     // MARK: - Private Helpers
 
     /// FFT実行（実数 → 複素数）
+    ///
+    /// vDSP_fft_zrip を使用した正しい実数FFT実装
+    ///
+    /// 重要:
+    /// - vDSP_fft_zripは実数FFTで、N個の実数入力をN/2個の複素数として扱う
+    /// - データはeven-oddパッキング: {A[0],A[2],...,A[n-1],A[1],A[3],...A[n]}
+    /// - FFT結果は2×スケールされるため、1/2の補正が必要
+    /// 詳細: https://developer.apple.com/documentation/accelerate/1449930-vdsp_fft_zrip
     private func performFFT(_ input: [Float]) -> (magnitude: [Float], phase: [Float]) {
         guard let setup = fftSetup else {
             fatalError("FFT setup not initialized")
         }
 
-        // 実数・虚数部用バッファ
-        var real = [Float](repeating: 0, count: fftSize)
-        var imaginary = [Float](repeating: 0, count: fftSize)
+        let halfSize = fftSize / 2
 
-        // 入力を実数部にコピー
-        real = input
+        // Split complex format用バッファ
+        var realPart = [Float](repeating: 0, count: halfSize)
+        var imagPart = [Float](repeating: 0, count: halfSize)
+
+        // Even-oddパッキング: 偶数インデックスをrealp、奇数インデックスをimagpに配置
+        for i in 0..<halfSize {
+            realPart[i] = input[2*i]      // 偶数インデックス
+            imagPart[i] = input[2*i + 1]  // 奇数インデックス
+        }
 
         // FFT実行
-        vDSP_DFT_Execute(setup, real, imaginary, &real, &imaginary)
+        realPart.withUnsafeMutableBufferPointer { realBuffer in
+            imagPart.withUnsafeMutableBufferPointer { imagBuffer in
+                var splitComplex = DSPSplitComplex(realp: realBuffer.baseAddress!, imagp: imagBuffer.baseAddress!)
+                vDSP_fft_zrip(setup, &splitComplex, 1, log2n, FFTDirection(FFT_FORWARD))
+            }
+        }
 
-        // 振幅・位相計算
+        // vDSP_fft_zripは2×スケールするため、1/2で補正
+        var scale = Float(0.5)
+        vDSP_vsmul(realPart, 1, &scale, &realPart, 1, vDSP_Length(halfSize))
+        vDSP_vsmul(imagPart, 1, &scale, &imagPart, 1, vDSP_Length(halfSize))
+
+        // 結果をmagnitude/phaseに変換
         var magnitude = [Float](repeating: 0, count: frequencyBins)
         var phase = [Float](repeating: 0, count: frequencyBins)
 
-        for i in 0..<frequencyBins {
-            let re = real[i]
-            let im = imaginary[i]
+        // DC成分 (bin 0) - realp[0]に格納されている
+        magnitude[0] = abs(realPart[0])
+        phase[0] = realPart[0] >= 0 ? 0 : Float.pi
 
-            // 振幅: sqrt(re^2 + im^2)
+        // Nyquist成分 (bin N/2) - imagp[0]に格納されている
+        if frequencyBins > halfSize {
+            magnitude[halfSize] = abs(imagPart[0])
+            phase[halfSize] = imagPart[0] >= 0 ? 0 : Float.pi
+        }
+
+        // 中間周波数成分 (bin 1 ~ N/2-1)
+        for i in 1..<halfSize {
+            let re = realPart[i]
+            let im = imagPart[i]
             magnitude[i] = sqrtf(re * re + im * im)
-
-            // 位相: atan2(im, re)
             phase[i] = atan2f(im, re)
         }
 
@@ -250,52 +293,62 @@ class STFTProcessor {
     }
 
     /// iFFT実行（複素数 → 実数）
+    ///
+    /// vDSP_fft_zrip を使用した正しい実数iFFT実装
+    ///
+    /// 重要:
+    /// - FFTの逆なので、magnitude/phaseを複素数に変換してiFFT実行
+    /// - iFFT結果は2×スケールされるため、1/2の補正が必要
+    /// - さらにFFT長Nの補正が必要なため、合計で1/(2N)のスケーリング
+    /// - Even-oddアンパッキング: {realp[0],imagp[0],realp[1],imagp[1],...}
     private func performIFFT(magnitude: [Float], phase: [Float]) -> [Float] {
+        guard let setup = fftSetup else {
+            fatalError("FFT setup not initialized")
+        }
+
         let inputBins = magnitude.count
+        let halfSize = fftSize / 2
 
-        guard let setup = vDSP_DFT_zop_CreateSetup(
-            nil,
-            vDSP_Length(fftSize),
-            .INVERSE
-        ) else {
-            fatalError("Failed to create iFFT setup")
-        }
+        // Split complex format用バッファ
+        var realPart = [Float](repeating: 0, count: halfSize)
+        var imagPart = [Float](repeating: 0, count: halfSize)
 
-        defer {
-            vDSP_DFT_DestroySetup(setup)
-        }
+        // Magnitude/PhaseをSplit Complexに変換
+        // DC成分（bin 0）→ realp[0]に配置
+        realPart[0] = magnitude[0] * cos(phase[0])
 
-        // 複素数を実部・虚部に変換
-        var real = [Float](repeating: 0, count: fftSize)
-        var imaginary = [Float](repeating: 0, count: fftSize)
+        // Nyquist成分（bin N/2）→ imagp[0]に配置
+        imagPart[0] = inputBins > halfSize ? magnitude[halfSize] * cos(phase[halfSize]) : 0
 
-        // 前半: 周波数ビンを実部・虚部に変換
-        let usedBins = min(inputBins, frequencyBins)
-        for i in 0..<usedBins {
-            let mag = magnitude[i]
-            let ph = phase[i]
-
-            real[i] = mag * cosf(ph)
-            imaginary[i] = mag * sinf(ph)
-        }
-
-        // 後半: 共役対称性を利用 (DC とNyquist以外)
-        // FFTの性質: X[N-k] = conj(X[k]) for real signals
-        for i in 1..<usedBins-1 {
-            let mirrorIndex = fftSize - i
-            real[mirrorIndex] = real[i]
-            imaginary[mirrorIndex] = -imaginary[i]  // 共役
+        // 中間周波数成分（bin 1 ~ N/2-1）
+        let usedBins = min(inputBins, halfSize)
+        for i in 1..<usedBins {
+            realPart[i] = magnitude[i] * cos(phase[i])
+            imagPart[i] = magnitude[i] * sin(phase[i])
         }
 
         // iFFT実行
+        realPart.withUnsafeMutableBufferPointer { realBuffer in
+            imagPart.withUnsafeMutableBufferPointer { imagBuffer in
+                var splitComplex = DSPSplitComplex(realp: realBuffer.baseAddress!, imagp: imagBuffer.baseAddress!)
+                vDSP_fft_zrip(setup, &splitComplex, 1, log2n, FFTDirection(FFT_INVERSE))
+            }
+        }
+
+        // スケーリング (1/(2N))
+        // - vDSP_fft_zripのiFFTは2×スケール → 1/2で補正
+        // - FFT長Nの補正 → 1/Nで補正
+        // - 合計: 1/(2N) = 1/2 * 1/N
+        var scale = Float(1.0) / Float(fftSize * 2)
+        vDSP_vsmul(realPart, 1, &scale, &realPart, 1, vDSP_Length(halfSize))
+        vDSP_vsmul(imagPart, 1, &scale, &imagPart, 1, vDSP_Length(halfSize))
+
+        // Even-oddアンパッキング: split complex → real signal
         var output = [Float](repeating: 0, count: fftSize)
-        var dummy = [Float](repeating: 0, count: fftSize)
-
-        vDSP_DFT_Execute(setup, real, imaginary, &output, &dummy)
-
-        // vDSPのiFFTはスケーリングしないため、1/N で正規化が必要
-        var scale = Float(1.0 / Float(fftSize))
-        vDSP_vsmul(output, 1, &scale, &output, 1, vDSP_Length(fftSize))
+        for i in 0..<halfSize {
+            output[2*i] = realPart[i]      // 偶数インデックス
+            output[2*i + 1] = imagPart[i]  // 奇数インデックス
+        }
 
         return output
     }

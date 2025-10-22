@@ -3,11 +3,26 @@ import CoreML
 import AVFoundation
 import Accelerate
 
-// デバッグ: STFT/iSTFT 中間データ比較
-print(String(repeating: "=", count: 80))
-print("🔍 Debug Mode: STFT/iSTFT Intermediate Data Comparison")
-print(String(repeating: "=", count: 80))
-debugSTFTComparison()
+// v2実装: 複素数DFT（vDSP_DFT）の基本テスト
+print("================================================================================")
+print("🧪 V2 Implementation: Complex DFT (vDSP_DFT) Tests")
+print("================================================================================")
+testComplexDFT()
+print("\n✅ Complex DFT tests completed")
+
+// Python librosa との1フレーム比較
+testDFTComparison()
+
+// ISTFT debug
+debugISTFTDetails()
+
+// STFTProcessorV2のround-tripテスト
+testSTFTV2RoundTrip()
+
+// STFTProcessorV2とPython librosaの比較
+compareSTFTV2WithPython()
+
+print("")  // 空行を追加して見やすく
 
 // 本格的な音源分離テストを実行
 print("\n" + String(repeating: "=", count: 80))
