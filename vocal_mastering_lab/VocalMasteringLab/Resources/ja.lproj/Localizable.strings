@@ -1,0 +1,365 @@
+/*
+  Localizable.strings (Japanese)
+  VocalisStudio
+*/
+
+// MARK: - Common
+"app_name" = "Vocalis Studio";
+"ok" = "OK";
+"cancel" = "キャンセル";
+"save" = "保存";
+"delete" = "削除";
+"error" = "エラー";
+"alert.notice" = "お知らせ";
+
+// MARK: - HomeView
+"home.record_button" = "録音を開始";
+"home.list_button" = "録音一覧";
+"home.settings_button" = "設定";
+
+// MARK: - RecordingView
+"recording.title" = "録音";
+"recording.list_button" = "一覧";
+"recording.rename" = "名前を編集";
+"recording.rename.title" = "録音の名前を変更";
+"recording.rename.placeholder" = "録音名";
+"recording.rename.message" = "新しい名前を入力してください";
+"recording.delete.title" = "録音を削除";
+"recording.delete.message" = "この録音を削除しますか？この操作は取り消せません。";
+"recording.settings_title" = "スケール設定";
+"recording.scale_label" = "スケール選択";
+"recording.scale_five_tone" = "5トーン";
+"recording.scale_five_tone_down" = "5トーン下降";
+"recording.scale_octave_repeat" = "オクターブリピート";
+"recording.scale_broken" = "ブロークン";
+"recording.scale_broken_double" = "ブロークン (x2)";
+"recording.scale_rossini" = "1.5オクターブ";
+"recording.scale_arpeggio_down_triple" = "アルペジオ下降3連";
+"recording.scale_off" = "オフ";
+"recording.start_pitch_label" = "スタートピッチ";
+"recording.tempo_label" = "テンポ";
+"recording.tempo_unit" = "BPM";
+"recording.ascending_count_label" = "上昇回数";
+"recording.ascending_count_unit" = "回";
+"recording.pattern_label" = "進行パターン";
+"recording.pattern_ascending_only" = "上昇のみ";
+"recording.pattern_descending_only" = "下降のみ";
+"recording.pattern_ascending_then_descending" = "上昇→下降";
+"recording.pattern_descending_then_ascending" = "下降→上昇";
+"recording.key_ascending_count" = "キー上昇";
+"recording.key_descending_count" = "キー下降";
+"recording.key_count_unit" = "回";
+"recording.ascending_interval" = "上昇間隔";
+"recording.descending_interval" = "下降間隔";
+"recording.count_label" = "回数:";
+"recording.interval_label" = "間隔:";
+"recording.interval_semitone" = "半音";
+"recording.interval_whole_tone" = "全音";
+"recording.interval_minor_third" = "短3度";
+"recording.interval_major_third" = "長3度";
+"recording.hide_settings" = "設定を隠す";
+"recording.show_settings" = "設定を表示";
+"recording.realtime_spectrum_title" = "リアルタイムスペクトル";
+"recording.indicator_title" = "インジケーター";
+"recording.audio_level" = "音量:";
+"recording.pitch_label" = "ピッチ:";
+"recording.pitch_indicator_title" = "ピッチインジケーター";
+"recording.pitch_target" = "目標:";
+"recording.pitch_detected" = "検出:";
+"recording.realtime_placeholder" = "録音または再生を開始すると表示されます";
+"recording.start_button" = "録音開始";
+"recording.preparing" = "準備中...";
+"recording.stop_button" = "録音停止";
+"recording.play_last_button" = "最後の録音を再生";
+"recording.stop_playback_button" = "停止";
+"recording.analyze_button" = "録音を分析";
+"recording.countdown_message" = "カウントダウン中...";
+
+// MARK: - RecordingListView
+"list.title" = "録音一覧";
+"list.empty_title" = "録音がありません";
+"list.empty_message" = "録音画面から練習を始めましょう";
+"list.delete_confirmation_title" = "削除の確認";
+"list.delete_confirmation_message" = "この録音を削除しますか？";
+"list.select_recording" = "録音を選択してください";
+
+// MARK: - Playback Controls
+"play" = "再生";
+"pause" = "一時停止";
+"previous.recording" = "前の録音";
+"next.recording" = "次の録音";
+
+// MARK: - AnalysisView
+"analysis.title" = "録音分析";
+"analysis.analyzing" = "分析中...";
+"analysis.error" = "分析エラー";
+"analysis.info_title" = "録音情報";
+"analysis.info_datetime" = "日時";
+"analysis.info_duration" = "長さ";
+"analysis.info_scale" = "スケール";
+"analysis.info_pitch" = "ピッチ";
+"analysis.info_tempo" = "テンポ";
+"analysis.info_ascending_count" = "上昇回数";
+"analysis.playback_title" = "再生コントロール";
+"analysis.spectrogram_title" = "スペクトログラム";
+"analysis.pitch_graph_title" = "ピッチ分析グラフ";
+"analysis.pitch_bar_title" = "音程正確度";
+"analysis.target_scale" = "目標音階";
+"analysis.detected_pitch" = "検出ピッチ";
+"analysis.close_expanded_view" = "全画面表示を閉じる";
+"analysis.playing" = "再生中";
+"analysis.paused" = "一時停止中";
+"analysis.no_spectrum_data" = "分析データなし";
+"analysis.no_pitch_data" = "ピッチデータなし";
+
+// MARK: - SettingsView
+"settings.title" = "設定";
+"settings.language_section" = "言語設定";
+"settings.language_label" = "言語";
+"settings.language_japanese" = "日本語";
+"settings.language_english" = "English";
+"settings.language_chinese_simplified" = "简体中文";
+"settings.language_chinese_traditional" = "繁體中文";
+"settings.language_korean" = "한국어";
+"settings.language_spanish" = "Español";
+"settings.language_french" = "Français";
+"settings.language_german" = "Deutsch";
+"settings.info_section" = "情報";
+"settings.version_label" = "バージョン";
+
+// MARK: - Presets
+"preset.title" = "プリセット";
+"preset.save_button" = "現在の設定を保存";
+"preset.load_button" = "プリセットを選択";
+"preset.save_dialog_title" = "プリセットを保存";
+"preset.name_placeholder" = "プリセット名を入力";
+"preset.save" = "保存";
+"preset.empty_title" = "プリセットがありません";
+"preset.empty_message" = "現在の設定を保存して、次回から素早く読み込めます";
+"preset.save_error" = "プリセットの保存に失敗しました";
+"preset.delete_error" = "プリセットの削除に失敗しました";
+"preset.delete_confirmation_title" = "削除の確認";
+"preset.delete_confirmation_message" = "このプリセットを削除しますか？";
+
+// MARK: - Scale Notes
+"scale.note_do" = "ド";
+"scale.note_re" = "レ";
+"scale.note_mi" = "ミ";
+"scale.note_fa" = "ファ";
+"scale.note_so" = "ソ";
+
+// MARK: - Scale Pattern Names
+// Note: Scale names now use recording.scale_* keys for consistency
+
+// MARK: - PaywallView
+"paywall.title" = "プレミアムプラン";
+"paywall.close" = "閉じる";
+"paywall.purchase_complete" = "購入完了";
+"paywall.purchase_complete_message" = "サブスクリプションの購入が完了しました。";
+"paywall.unlock_unlimited" = "無制限録音を解放";
+"paywall.unlimited_description" = "プレミアムで毎日何度でも録音できます";
+"paywall.current" = "現在";
+"paywall.free_limit" = "1日5回まで / 1回30秒まで";
+"paywall.premium" = "プレミアム";
+"paywall.premium_monthly" = "プレミアム（月額）";
+"paywall.premium_limit" = "回数無制限 / 1回最大5分";
+"paywall.price_monthly" = "¥500/月";
+"paywall.price_per_month" = "%@/月";
+"paywall.subscription_period" = "月額自動更新サブスクリプション";
+"paywall.purchase" = "購入する";
+"paywall.restore" = "購入の復元";
+"paywall.terms_agreement" = "購入により利用規約とプライバシーポリシーに同意したものとみなされます";
+"paywall.terms" = "利用規約";
+"paywall.privacy" = "プライバシーポリシー";
+"paywall.terms_url" = "https://vocalisstudio.github.io/web/terms.html";
+"paywall.privacy_url" = "https://vocalisstudio.github.io/web/privacy.html";
+"paywall.recommended" = "おすすめ";
+"paywall.price_free" = "無料";
+"paywall.premium_plus" = "プレミアム・プラス";
+"paywall.price_pro" = "¥980/月";
+"paywall.loading" = "読み込み中...";
+
+// MARK: - Subscription Period (Apple requirement: display subscription length)
+"subscription.period.per_day" = "%@/日";
+"subscription.period.per_days" = "%@/%d日";
+"subscription.period.per_week" = "%@/週";
+"subscription.period.per_weeks" = "%@/%d週";
+"subscription.period.per_month" = "%@/月";
+"subscription.period.per_months" = "%@/%dヶ月";
+"subscription.period.per_year" = "%@/年";
+"subscription.period.per_years" = "%@/%d年";
+"subscription.auto_renew.daily" = "日額自動更新サブスクリプション";
+"subscription.auto_renew.days" = "%d日ごと自動更新サブスクリプション";
+"subscription.auto_renew.weekly" = "週額自動更新サブスクリプション";
+"subscription.auto_renew.weeks" = "%d週ごと自動更新サブスクリプション";
+"subscription.auto_renew.monthly" = "月額自動更新サブスクリプション";
+"subscription.auto_renew.months" = "%dヶ月ごと自動更新サブスクリプション";
+"subscription.auto_renew.yearly" = "年額自動更新サブスクリプション";
+"subscription.auto_renew.years" = "%d年ごと自動更新サブスクリプション";
+
+// MARK: - SubscriptionManagementView
+"subscription.title" = "サブスクリプション管理";
+"subscription.close" = "閉じる";
+"subscription.active" = "有効";
+"subscription.inactive" = "無効";
+"subscription.purchase_date" = "購入日";
+"subscription.expiration_date" = "有効期限";
+"subscription.auto_renewal" = "自動更新";
+"subscription.version" = "バージョン";
+"subscription.available_features" = "利用可能な機能";
+"subscription.restore" = "購入の復元";
+"subscription.cancel" = "解約する";
+"subscription.upgrade" = "アップグレード";
+"subscription.upgrade_to_plus" = "Premium Plusにアップグレード";
+"subscription.not_found" = "サブスクリプション情報が見つかりません";
+"subscription.reload" = "再読み込み";
+"subscription.minimum_tier" = "以上";
+
+// MARK: - AudioOutputSettingsView
+"output.title" = "出力設定";
+"output.scale_volume" = "スケール再生音量";
+"output.recording_volume" = "録音再生音量";
+"output.volume_settings" = "音量設定";
+"output.volume_description" = "スケール再生音量と録音再生音量を個別に調整できます";
+"output.sound_source" = "音源";
+"output.scale_sound" = "スケール再生音";
+"output.reset_default" = "デフォルトに戻す";
+"output.reset_confirmation" = "出力設定をデフォルト値に戻しますか?";
+"output.reset" = "リセット";
+"output.save_error" = "保存エラー";
+"output.save_failed" = "設定の保存に失敗しました";
+"output.reset_failed" = "設定のリセットに失敗しました";
+
+// MARK: - Scale Sound Types
+"sound.acoustic_grand_piano" = "ピアノ";
+"sound.electric_piano" = "エレピ";
+"sound.acoustic_guitar" = "ギター";
+"sound.vibraphone" = "ビブラフォン";
+"sound.marimba" = "マリンバ";
+"sound.flute" = "フルート";
+"sound.clarinet" = "クラリネット";
+"sound.sine_wave" = "サイン波";
+"sound.acoustic_grand_piano.desc" = "最も一般的な音色";
+"sound.electric_piano.desc" = "明るく華やかな音色";
+"sound.acoustic_guitar.desc" = "柔らかく温かみのある音色";
+"sound.vibraphone.desc" = "倍音が少なく聞き取りやすい";
+"sound.marimba.desc" = "温かみのある柔らかい音色";
+"sound.flute.desc" = "明瞭で澄んだ音色";
+"sound.clarinet.desc" = "声楽の音域に近い";
+"sound.sine_wave.desc" = "純音でピッチを正確に確認";
+
+// MARK: - AudioInputSettingsView
+"input.title" = "入力設定";
+"input.detection_sensitivity" = "検出感度";
+"input.sensitivity_low" = "低";
+"input.sensitivity_normal" = "標準";
+"input.sensitivity_high" = "高";
+"input.pitch_detection_sensitivity" = "ピッチ検出感度";
+"input.sensitivity_description" = "低: 大きい音のみ検出\n標準: バランスの取れた検出\n高: 小さい音も検出";
+"input.detection_accuracy" = "検出精度";
+"input.pitch_detection_accuracy" = "ピッチ検出精度";
+"input.accuracy_description" = "検出結果の信頼度閾値。高いほど正確なピッチのみ表示";
+"input.reset_confirmation" = "入力設定をデフォルト値に戻しますか?";
+"input.save_failed" = "設定の保存に失敗しました";
+"input.reset_failed" = "設定のリセットに失敗しました";
+
+// Pitch Algorithm Settings
+"input.pitch_algorithm" = "ピッチアルゴリズム";
+"input.pitch_algorithm_section" = "ピッチ検出アルゴリズム";
+"algorithm.yin" = "YIN";
+"algorithm.yin.desc" = "標準的なピッチ検出アルゴリズム。広く使われている手法。";
+"algorithm.pyin" = "pYIN";
+"algorithm.pyin.desc" = "時間方向の安定性を重視。検出の揺れを抑えたい場合向け。";
+"algorithm.pyin_high_detection" = "pYIN (高検出)";
+"algorithm.pyin_high_detection.desc" = "より多くのピッチを検出するよう最適化。信号の弱い声向け。";
+"algorithm.pyin_balanced" = "pYIN (バランス)";
+"algorithm.pyin_balanced.desc" = "検出率と精度のバランスを重視。";
+"algorithm.pyin_aggressive" = "pYIN (アグレッシブ)";
+"algorithm.pyin_aggressive.desc" = "低信頼度のピッチも検出。検出率は高いがノイズが含まれる場合あり。";
+"algorithm.fcpe" = "FCPE (ML)";
+"algorithm.fcpe.desc" = "高精度で安定した検出。ほとんどの状況に最適。（推奨）";
+
+// MARK: - AlgorithmSettingsView
+"algorithm.title" = "アルゴリズム設定";
+"algorithm.pitch_analysis" = "ピッチ分析";
+"algorithm.section_description" = "録音の分析に使用するピッチ検出アルゴリズムを選択します";
+"algorithm.reset_confirmation" = "アルゴリズム設定をデフォルト値に戻しますか?";
+"algorithm.save_failed" = "設定の保存に失敗しました";
+"algorithm.reset_failed" = "設定のリセットに失敗しました";
+"settings.algorithm_section" = "アルゴリズム";
+"settings.algorithm_settings" = "アルゴリズム設定";
+
+// MARK: - SettingsView Additional
+"settings.subscription_section" = "サブスクリプション";
+"settings.manage_subscription" = "サブスクリプションを管理";
+"settings.audio_section" = "オーディオ";
+"settings.input_settings" = "入力設定";
+"settings.output_settings" = "出力設定";
+"settings.terms_section" = "規約・ポリシー";
+"settings.terms" = "利用規約";
+"settings.privacy" = "プライバシーポリシー";
+"settings.terms_url" = "https://vocalisstudio.github.io/web/terms.html";
+"settings.privacy_url" = "https://vocalisstudio.github.io/web/privacy.html";
+
+// MARK: - HomeView Additional
+"home.unlock_unlimited" = "無制限録音を解放";
+"home.premium_no_limit" = "プレミアムで回数制限なし";
+
+// MARK: - AnalysisView Additional
+"analysis.fullscreen" = "フルスクリーン";
+"analysis.close" = "閉じる";
+"analysis.legend_target" = "目標音階";
+"analysis.legend_detected" = "検出ピッチ";
+"analysis.statistics_button" = "統計";
+"analysis.statistics_short" = "統計";
+"analysis.no_scale" = "スケールなし";
+
+// MARK: - Statistics Sheet
+"statistics.title" = "統計";
+"statistics.overall" = "全体";
+"statistics.avg_deviation" = "平均ズレ";
+"statistics.deviation_stddev" = "ばらつき";
+"statistics.median_deviation" = "中央値";
+"statistics.detection_rate" = "検出率";
+"statistics.vocal_range" = "音域";
+"statistics.total_samples" = "サンプル数";
+"statistics.by_position" = "スケール内ポジション別";
+"statistics.position_suffix" = "番目";
+"statistics.by_pitch" = "ピッチ別";
+"statistics.notes_detected" = "音検出";
+"statistics.positions" = "ポジション";
+"statistics.times" = "×";
+"statistics.cents" = "セント";
+"statistics.no_data" = "データなし";
+"statistics.vibrato" = "ビブラート";
+"statistics.vibrato_rate" = "平均速度";
+"statistics.vibrato_extent" = "平均振幅";
+"statistics.vibrato_regularity" = "規則性";
+"statistics.vibrato_presence" = "検出率";
+"statistics.vibrato_segments" = "分析セグメント数";
+"statistics.vibrato_no_data" = "データ不足";
+"statistics.pitch_analysis" = "ピッチ分析";
+"statistics.spectrum_analysis" = "スペクトル分析";
+"statistics.high_freq_resonance" = "高域共鳴";
+"statistics.brightness_short" = "Brightness (明るさ)";
+"statistics.air_short" = "Airiness (空気感)";
+"statistics.singers_formant" = "シンガーズフォルマント";
+"statistics.sf_ratio" = "エネルギー比率";
+"statistics.sf_intensity" = "強度差";
+"statistics.sf_no_data" = "データなし";
+
+// MARK: - DebugMenuView
+"debug.paywall" = "プレミアムプラン (Paywall)";
+"debug.subscription_management" = "サブスクリプション管理";
+"debug.reset_confirmation" = "録音回数がリセットされます。よろしいですか?";
+"debug.current_tier" = "現在";
+"debug.reset_recording_count" = "録音回数をリセット";
+
+// MARK: - Recording Limit
+"recording.limit_reached" = "本日の録音回数の上限に達しました (%@プラン)";
+
+// MARK: - MIDI Range Warning
+"warning.midi_range.title" = "設定エラー";
+"warning.midi_range.too_high" = "音域が高すぎます";
+"warning.midi_range.too_low" = "音域が低すぎます";
+"warning.midi_range.hint" = "キー数や間隔を調整してください";

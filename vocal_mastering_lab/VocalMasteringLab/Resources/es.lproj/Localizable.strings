@@ -1,0 +1,362 @@
+/*
+  Localizable.strings (Spanish)
+  VocalisStudio
+*/
+
+// MARK: - Common
+"app_name" = "Vocalis Studio";
+"ok" = "Aceptar";
+"cancel" = "Cancelar";
+"save" = "Guardar";
+"delete" = "Eliminar";
+"error" = "Error";
+"alert.notice" = "Aviso";
+
+// MARK: - HomeView
+"home.record_button" = "Iniciar grabación";
+"home.list_button" = "Lista de grabaciones";
+"home.settings_button" = "Ajustes";
+
+// MARK: - RecordingView
+"recording.title" = "Grabación";
+"recording.list_button" = "Lista";
+"recording.rename" = "Renombrar";
+"recording.rename.title" = "Renombrar grabación";
+"recording.rename.placeholder" = "Nombre de la grabación";
+"recording.rename.message" = "Introduce un nuevo nombre para la grabación";
+"recording.delete.title" = "Eliminar grabación";
+"recording.delete.message" = "¿Estás seguro de que quieres eliminar esta grabación? Esta acción no se puede deshacer.";
+"recording.settings_title" = "Ajustes de escala";
+"recording.scale_label" = "Escala";
+"recording.scale_five_tone" = "Pentatónica";
+"recording.scale_octave_repeat" = "Repetición de octava";
+"recording.scale_broken" = "Escala rota";
+"recording.scale_rossini" = "1,5 octavas";
+"recording.scale_arpeggio_down_triple" = "Arpegio descendente triple";
+"recording.scale_off" = "Desactivado";
+"recording.start_pitch_label" = "Tono inicial";
+"recording.tempo_label" = "Tempo";
+"recording.tempo_unit" = "BPM";
+"recording.ascending_count_label" = "Repeticiones ascendentes";
+"recording.ascending_count_unit" = "veces";
+"recording.pattern_label" = "Patrón";
+"recording.pattern_ascending_only" = "Solo ascendente";
+"recording.pattern_descending_only" = "Solo descendente";
+"recording.pattern_ascending_then_descending" = "Ascendente→Descendente";
+"recording.pattern_descending_then_ascending" = "Descendente→Ascendente";
+"recording.key_ascending_count" = "Tonalidad ascendente";
+"recording.key_descending_count" = "Tonalidad descendente";
+"recording.key_count_unit" = "veces";
+"recording.ascending_interval" = "Intervalo ascendente";
+"recording.descending_interval" = "Intervalo descendente";
+"recording.count_label" = "Veces:";
+"recording.interval_label" = "Intervalo:";
+"recording.interval_semitone" = "Semitono";
+"recording.interval_whole_tone" = "Tono";
+"recording.interval_minor_third" = "Tercera menor";
+"recording.interval_major_third" = "Tercera mayor";
+"recording.hide_settings" = "Ocultar ajustes";
+"recording.show_settings" = "Mostrar ajustes";
+"recording.realtime_spectrum_title" = "Espectro en tiempo real";
+"recording.indicator_title" = "Indicador";
+"recording.audio_level" = "Volumen:";
+"recording.pitch_label" = "Tono:";
+"recording.pitch_indicator_title" = "Indicador de tono";
+"recording.pitch_target" = "Objetivo:";
+"recording.pitch_detected" = "Detectado:";
+"recording.realtime_placeholder" = "Se mostrará al iniciar grabación o reproducción";
+"recording.start_button" = "Iniciar grabación";
+"recording.preparing" = "Preparando...";
+"recording.stop_button" = "Detener grabación";
+"recording.play_last_button" = "Reproducir última grabación";
+"recording.stop_playback_button" = "Detener";
+"recording.analyze_button" = "Analizar grabación";
+"recording.countdown_message" = "Cuenta regresiva...";
+
+// MARK: - RecordingListView
+"list.title" = "Lista de grabaciones";
+"list.empty_title" = "Sin grabaciones";
+"list.empty_message" = "Comienza a practicar desde la pantalla de grabación";
+"list.delete_confirmation_title" = "Confirmar eliminación";
+"list.delete_confirmation_message" = "¿Estás seguro de que quieres eliminar esta grabación?";
+"list.select_recording" = "Seleccionar grabación";
+
+// MARK: - Playback Controls
+"play" = "Reproducir";
+"pause" = "Pausar";
+"previous.recording" = "Grabación anterior";
+"next.recording" = "Grabación siguiente";
+
+// MARK: - AnalysisView
+"analysis.title" = "Análisis de grabación";
+"analysis.analyzing" = "Analizando...";
+"analysis.error" = "Error de análisis";
+"analysis.info_title" = "Información de grabación";
+"analysis.info_datetime" = "Fecha y hora";
+"analysis.info_duration" = "Duración";
+"analysis.info_scale" = "Escala";
+"analysis.info_pitch" = "Tono";
+"analysis.info_tempo" = "Tempo";
+"analysis.info_ascending_count" = "Repeticiones ascendentes";
+"analysis.playback_title" = "Control de reproducción";
+"analysis.spectrogram_title" = "Espectrograma";
+"analysis.pitch_graph_title" = "Análisis de tono";
+"analysis.pitch_bar_title" = "Precisión del tono";
+"analysis.target_scale" = "Escala objetivo";
+"analysis.detected_pitch" = "Tono detectado";
+"analysis.close_expanded_view" = "Cerrar vista expandida";
+"analysis.playing" = "Reproduciendo";
+"analysis.paused" = "En pausa";
+"analysis.no_spectrum_data" = "Sin datos de espectro";
+"analysis.no_pitch_data" = "Sin datos de tono";
+
+// MARK: - SettingsView
+"settings.title" = "Ajustes";
+"settings.language_section" = "Idioma";
+"settings.language_label" = "Idioma";
+"settings.language_japanese" = "日本語";
+"settings.language_english" = "English";
+"settings.language_chinese_simplified" = "简体中文";
+"settings.language_chinese_traditional" = "繁體中文";
+"settings.language_korean" = "한국어";
+"settings.language_spanish" = "Español";
+"settings.language_french" = "Français";
+"settings.language_german" = "Deutsch";
+"settings.info_section" = "Información";
+"settings.version_label" = "Versión";
+
+// MARK: - Presets
+"preset.title" = "Preajustes";
+"preset.save_button" = "Guardar ajustes actuales";
+"preset.load_button" = "Seleccionar preajuste";
+"preset.save_dialog_title" = "Guardar preajuste";
+"preset.name_placeholder" = "Nombre del preajuste";
+"preset.save" = "Guardar";
+"preset.empty_title" = "Sin preajustes";
+"preset.empty_message" = "Guarda los ajustes actuales para cargarlos rápidamente después";
+"preset.save_error" = "Error al guardar preajuste";
+"preset.delete_error" = "Error al eliminar preajuste";
+"preset.delete_confirmation_title" = "Confirmar eliminación";
+"preset.delete_confirmation_message" = "¿Estás seguro de que quieres eliminar este preajuste?";
+
+// MARK: - Scale Notes
+"scale.note_do" = "Do";
+"scale.note_re" = "Re";
+"scale.note_mi" = "Mi";
+"scale.note_fa" = "Fa";
+"scale.note_so" = "Sol";
+
+// MARK: - Scale Pattern Names
+// Note: Scale names now use recording.scale_* keys for consistency
+
+// MARK: - PaywallView
+"paywall.title" = "Premium";
+"paywall.close" = "Cerrar";
+"paywall.purchase_complete" = "Compra completada";
+"paywall.purchase_complete_message" = "Tu compra de suscripción se ha completado.";
+"paywall.unlock_unlimited" = "Desbloquear grabaciones ilimitadas";
+"paywall.unlimited_description" = "Graba ilimitadamente cada día con Premium";
+"paywall.current" = "Actual";
+"paywall.free_limit" = "5 veces/día / máx. 30 seg";
+"paywall.premium" = "Premium";
+"paywall.premium_monthly" = "Premium (Mensual)";
+"paywall.premium_limit" = "Ilimitado / máx. 5 min";
+"paywall.price_monthly" = "$5.00/mes";
+"paywall.price_per_month" = "%@/mes";
+"paywall.subscription_period" = "Suscripción mensual con renovación automática";
+"paywall.purchase" = "Comprar";
+"paywall.restore" = "Restaurar compra";
+"paywall.terms_agreement" = "Al comprar, aceptas los Términos de servicio y la Política de privacidad";
+"paywall.terms" = "Términos de servicio";
+"paywall.privacy" = "Política de privacidad";
+"paywall.terms_url" = "https://vocalisstudio.github.io/web/terms_en.html";
+"paywall.privacy_url" = "https://vocalisstudio.github.io/web/privacy_en.html";
+"paywall.recommended" = "Recomendado";
+"paywall.price_free" = "Gratis";
+"paywall.premium_plus" = "Premium Plus";
+"paywall.price_pro" = "$9.99/mes";
+"paywall.loading" = "Cargando...";
+
+// MARK: - Subscription Period (Apple requirement: display subscription length)
+"subscription.period.per_day" = "%@/día";
+"subscription.period.per_days" = "%@/%d días";
+"subscription.period.per_week" = "%@/semana";
+"subscription.period.per_weeks" = "%@/%d semanas";
+"subscription.period.per_month" = "%@/mes";
+"subscription.period.per_months" = "%@/%d meses";
+"subscription.period.per_year" = "%@/año";
+"subscription.period.per_years" = "%@/%d años";
+"subscription.auto_renew.daily" = "Suscripción diaria con renovación automática";
+"subscription.auto_renew.days" = "Renovación automática cada %d días";
+"subscription.auto_renew.weekly" = "Suscripción semanal con renovación automática";
+"subscription.auto_renew.weeks" = "Renovación automática cada %d semanas";
+"subscription.auto_renew.monthly" = "Suscripción mensual con renovación automática";
+"subscription.auto_renew.months" = "Renovación automática cada %d meses";
+"subscription.auto_renew.yearly" = "Suscripción anual con renovación automática";
+"subscription.auto_renew.years" = "Renovación automática cada %d años";
+
+// MARK: - SubscriptionManagementView
+"subscription.title" = "Gestión de suscripción";
+"subscription.close" = "Cerrar";
+"subscription.active" = "Activa";
+"subscription.inactive" = "Inactiva";
+"subscription.purchase_date" = "Fecha de compra";
+"subscription.expiration_date" = "Fecha de expiración";
+"subscription.auto_renewal" = "Renovación automática";
+"subscription.version" = "Versión";
+"subscription.available_features" = "Funciones disponibles";
+"subscription.restore" = "Restaurar compra";
+"subscription.cancel" = "Cancelar suscripción";
+"subscription.upgrade" = "Mejorar";
+"subscription.upgrade_to_plus" = "Mejorar a Premium Plus";
+"subscription.not_found" = "No se encontró información de suscripción";
+"subscription.reload" = "Recargar";
+"subscription.minimum_tier" = "o superior";
+
+// MARK: - AudioOutputSettingsView
+"output.title" = "Ajustes de salida";
+"output.scale_volume" = "Volumen de escala";
+"output.recording_volume" = "Volumen de grabación";
+"output.volume_settings" = "Ajustes de volumen";
+"output.volume_description" = "Ajusta el volumen de escala y grabación por separado";
+"output.sound_source" = "Fuente de sonido";
+"output.scale_sound" = "Sonido de escala";
+"output.reset_default" = "Restablecer valores predeterminados";
+"output.reset_confirmation" = "¿Estás seguro de que quieres restablecer los ajustes de salida a los valores predeterminados?";
+"output.reset" = "Restablecer";
+"output.save_error" = "Error al guardar";
+"output.save_failed" = "Error al guardar ajustes";
+"output.reset_failed" = "Error al restablecer ajustes";
+
+// MARK: - Scale Sound Types
+"sound.acoustic_grand_piano" = "Piano";
+"sound.electric_piano" = "Piano eléctrico";
+"sound.acoustic_guitar" = "Guitarra";
+"sound.vibraphone" = "Vibráfono";
+"sound.marimba" = "Marimba";
+"sound.flute" = "Flauta";
+"sound.clarinet" = "Clarinete";
+"sound.sine_wave" = "Onda sinusoidal";
+"sound.acoustic_grand_piano.desc" = "Tono más común";
+"sound.electric_piano.desc" = "Tono brillante y vivo";
+"sound.acoustic_guitar.desc" = "Tono suave y cálido";
+"sound.vibraphone.desc" = "Claro con pocos armónicos";
+"sound.marimba.desc" = "Tono cálido y suave";
+"sound.flute.desc" = "Tono claro y puro";
+"sound.clarinet.desc" = "Cercano al rango vocal";
+"sound.sine_wave.desc" = "Tono puro para afinación";
+
+// MARK: - AudioInputSettingsView
+"input.title" = "Ajustes de entrada";
+"input.detection_sensitivity" = "Sensibilidad de detección";
+"input.sensitivity_low" = "Baja";
+"input.sensitivity_normal" = "Normal";
+"input.sensitivity_high" = "Alta";
+"input.pitch_detection_sensitivity" = "Sensibilidad de detección de tono";
+"input.sensitivity_description" = "Baja: Solo detecta sonidos fuertes\nNormal: Detección equilibrada\nAlta: También detecta sonidos suaves";
+"input.detection_accuracy" = "Precisión de detección";
+"input.pitch_detection_accuracy" = "Precisión de detección de tono";
+"input.accuracy_description" = "Umbral de confianza de detección. Valores más altos muestran solo tonos precisos";
+"input.reset_confirmation" = "¿Estás seguro de que quieres restablecer los ajustes de entrada a los valores predeterminados?";
+"input.save_failed" = "Error al guardar ajustes";
+"input.reset_failed" = "Error al restablecer ajustes";
+
+// Pitch Algorithm Settings
+"input.pitch_algorithm" = "Algoritmo de tono";
+"input.pitch_algorithm_section" = "Algoritmo de detección de tono";
+"algorithm.yin" = "YIN";
+"algorithm.yin.desc" = "Algoritmo estándar de detección de tono. Método ampliamente utilizado.";
+"algorithm.pyin" = "pYIN";
+"algorithm.pyin.desc" = "Prioriza la estabilidad temporal. Para reducir fluctuaciones en la detección.";
+"algorithm.pyin_high_detection" = "pYIN (Alta detección)";
+"algorithm.pyin_high_detection.desc" = "Optimizado para detectar más tonos. Adecuado para voces con señal débil.";
+"algorithm.pyin_balanced" = "pYIN (Equilibrado)";
+"algorithm.pyin_balanced.desc" = "Equilibrio entre tasa de detección y precisión.";
+"algorithm.pyin_aggressive" = "pYIN (Agresivo)";
+"algorithm.pyin_aggressive.desc" = "Detecta tonos de baja confianza. Mayor tasa de detección pero puede incluir ruido.";
+"algorithm.fcpe" = "FCPE (ML)";
+"algorithm.fcpe.desc" = "Detección precisa y estable. Óptimo para la mayoría de situaciones. (Recomendado)";
+
+// MARK: - AlgorithmSettingsView
+"algorithm.title" = "Ajustes de Algoritmo";
+"algorithm.pitch_analysis" = "Análisis de Tono";
+"algorithm.section_description" = "Selecciona el algoritmo de detección de tono para analizar grabaciones";
+"algorithm.reset_confirmation" = "¿Restablecer los ajustes de algoritmo a los valores predeterminados?";
+"algorithm.save_failed" = "Error al guardar ajustes";
+"algorithm.reset_failed" = "Error al restablecer ajustes";
+"settings.algorithm_section" = "Algoritmo";
+"settings.algorithm_settings" = "Ajustes de Algoritmo";
+
+// MARK: - SettingsView Additional
+"settings.subscription_section" = "Suscripción";
+"settings.manage_subscription" = "Gestionar suscripción";
+"settings.audio_section" = "Audio";
+"settings.input_settings" = "Ajustes de entrada";
+"settings.output_settings" = "Ajustes de salida";
+"settings.terms_section" = "Términos y políticas";
+"settings.terms" = "Términos de servicio";
+"settings.privacy" = "Política de privacidad";
+"settings.terms_url" = "https://vocalisstudio.github.io/web/terms_en.html";
+"settings.privacy_url" = "https://vocalisstudio.github.io/web/privacy_en.html";
+
+// MARK: - HomeView Additional
+"home.unlock_unlimited" = "Desbloquear grabaciones ilimitadas";
+"home.premium_no_limit" = "Sin límites con Premium";
+
+// MARK: - AnalysisView Additional
+"analysis.fullscreen" = "Pantalla completa";
+"analysis.close" = "Cerrar";
+"analysis.legend_target" = "Escala objetivo";
+"analysis.legend_detected" = "Tono detectado";
+"analysis.statistics_button" = "Estadísticas";
+"analysis.statistics_short" = "Estadíst.";
+"analysis.no_scale" = "Sin escala grabada";
+
+// MARK: - Statistics
+"statistics.title" = "Estadísticas";
+"statistics.overall" = "General";
+"statistics.avg_deviation" = "Desviación promedio";
+"statistics.deviation_stddev" = "Variabilidad";
+"statistics.median_deviation" = "Mediana";
+"statistics.detection_rate" = "Tasa de detección";
+"statistics.vocal_range" = "Rango vocal";
+"statistics.total_samples" = "Muestras";
+"statistics.by_position" = "Por posición de escala";
+"statistics.position_suffix" = "º";
+"statistics.by_pitch" = "Por tono";
+"statistics.notes_detected" = " notas";
+"statistics.times" = "×";
+"statistics.cents" = "cents";
+"statistics.no_data" = "Sin datos disponibles";
+"statistics.vibrato" = "Vibrato";
+"statistics.vibrato_rate" = "Velocidad promedio";
+"statistics.vibrato_extent" = "Amplitud promedio";
+"statistics.vibrato_regularity" = "Regularidad";
+"statistics.vibrato_presence" = "Tasa de detección";
+"statistics.vibrato_segments" = "Segmentos analizados";
+"statistics.vibrato_no_data" = "Datos insuficientes";
+"statistics.pitch_analysis" = "Análisis de tono";
+"statistics.spectrum_analysis" = "Análisis de espectro";
+"statistics.high_freq_resonance" = "Resonancia de alta frecuencia";
+"statistics.brightness_short" = "Brightness (Brillo)";
+"statistics.air_short" = "Airiness (Aire)";
+"statistics.singers_formant" = "Formante del Cantante";
+"statistics.sf_ratio" = "Ratio de energía";
+"statistics.sf_intensity" = "Intensidad";
+"statistics.sf_no_data" = "Sin datos disponibles";
+
+// MARK: - DebugMenuView
+"debug.paywall" = "Premium (Paywall)";
+"debug.subscription_management" = "Gestión de suscripción";
+"debug.reset_confirmation" = "Se restablecerá el contador de grabaciones. ¿Continuar?";
+"debug.current_tier" = "Actual";
+"debug.reset_recording_count" = "Restablecer contador de grabaciones";
+
+// MARK: - Recording Limit
+"recording.limit_reached" = "Has alcanzado el límite de grabaciones de hoy (plan %@)";
+
+// MARK: - MIDI Range Warning
+"warning.midi_range.title" = "Error de configuración";
+"warning.midi_range.too_high" = "Rango demasiado alto";
+"warning.midi_range.too_low" = "Rango demasiado bajo";
+"warning.midi_range.hint" = "Ajuste la cantidad o el intervalo";

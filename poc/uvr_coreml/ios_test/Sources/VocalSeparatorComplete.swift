@@ -220,9 +220,10 @@ class VocalSeparatorComplete {
             let output = try predictChunk(chunk)
 
             // 結果を分割
+            // NOTE: UVR-MDX-NETモデルでは Channel 0 = Instrumental, Channel 1 = Vocals
             let actualSize = endFrame - startFrame
-            let vocalChunk = extractChannelMask(output, channel: 0, actualSize: actualSize)
-            let instrumentalChunk = extractChannelMask(output, channel: 1, actualSize: actualSize)
+            let instrumentalChunk = extractChannelMask(output, channel: 0, actualSize: actualSize)
+            let vocalChunk = extractChannelMask(output, channel: 1, actualSize: actualSize)
 
             vocalMasks.append(contentsOf: vocalChunk)
             instrumentalMasks.append(contentsOf: instrumentalChunk)
@@ -300,6 +301,9 @@ class VocalSeparatorComplete {
         guard let outputArray = output.featureValue(for: "var_992")?.multiArrayValue else {
             throw SeparationError.predictionFailed("出力取得失敗")
         }
+
+        // DEBUG: 出力形状を確認
+        print("      DEBUG predictChunk: output.shape = \(outputArray.shape)")
 
         return outputArray
     }

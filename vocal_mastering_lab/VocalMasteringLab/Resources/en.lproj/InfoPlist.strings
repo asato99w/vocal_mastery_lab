@@ -1,0 +1,6 @@
+/*
+  InfoPlist.strings
+  VocalisStudio (English)
+*/
+
+"NSMicrophoneUsageDescription" = "VocalisStudio needs access to your microphone to record your voice for vocal training.";

@@ -1,0 +1,4 @@
+onset,offset,midi_note,syllable
+0.0,0.8,60,note1
+0.8,1.6,62,note2
+1.6,2.4000000000000004,64,note3

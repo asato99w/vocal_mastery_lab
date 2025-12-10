@@ -1,0 +1,30 @@
+{
+  "description": "Vocadito dataset test notes for pitch detection accuracy testing",
+  "format": "Each note contains: startTime (seconds), frequency (Hz), duration (seconds)",
+  "tracks": {
+    "vocadito_1": {
+      "audioFile": "vocadito_1.wav",
+      "notes": [
+        {"index": 0, "startTime": 0.661768707, "frequency": 143.742, "duration": 0.290249433},
+        {"index": 1, "startTime": 1.010068027, "frequency": 158.441, "duration": 0.301859410},
+        {"index": 2, "startTime": 1.317732426, "frequency": 174.841, "duration": 0.847528345}
+      ]
+    },
+    "vocadito_4": {
+      "audioFile": "vocadito_4.wav",
+      "notes": [
+        {"index": 0, "startTime": 0.249614512, "frequency": 126.858, "duration": 0.040634921},
+        {"index": 1, "startTime": 0.296054422, "frequency": 144.387, "duration": 0.214784580},
+        {"index": 2, "startTime": 0.522448980, "frequency": 146.837, "duration": 0.174149660}
+      ]
+    },
+    "vocadito_7": {
+      "audioFile": "vocadito_7.wav",
+      "notes": [
+        {"index": 0, "startTime": 0.110294785, "frequency": 216.833, "duration": 0.208979592},
+        {"index": 1, "startTime": 0.481814059, "frequency": 253.94, "duration": 0.116099773},
+        {"index": 2, "startTime": 0.603718821, "frequency": 292.887, "duration": 0.615328798}
+      ]
+    }
+  }
+}

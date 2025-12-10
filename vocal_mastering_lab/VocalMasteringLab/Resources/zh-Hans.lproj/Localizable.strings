@@ -1,0 +1,362 @@
+/*
+  Localizable.strings (Simplified Chinese)
+  VocalisStudio
+*/
+
+// MARK: - Common
+"app_name" = "Vocalis Studio";
+"ok" = "确定";
+"cancel" = "取消";
+"save" = "保存";
+"delete" = "删除";
+"error" = "错误";
+"alert.notice" = "提示";
+
+// MARK: - HomeView
+"home.record_button" = "开始录音";
+"home.list_button" = "录音列表";
+"home.settings_button" = "设置";
+
+// MARK: - RecordingView
+"recording.title" = "录音";
+"recording.list_button" = "列表";
+"recording.rename" = "重命名";
+"recording.rename.title" = "重命名录音";
+"recording.rename.placeholder" = "录音名称";
+"recording.rename.message" = "输入新的录音名称";
+"recording.delete.title" = "删除录音";
+"recording.delete.message" = "确定要删除这个录音吗？此操作无法撤销。";
+"recording.settings_title" = "音阶设置";
+"recording.scale_label" = "音阶";
+"recording.scale_five_tone" = "五声音阶";
+"recording.scale_octave_repeat" = "八度重复";
+"recording.scale_broken" = "分解音阶";
+"recording.scale_rossini" = "1.5八度";
+"recording.scale_arpeggio_down_triple" = "琶音下行三连";
+"recording.scale_off" = "关闭";
+"recording.start_pitch_label" = "起始音高";
+"recording.tempo_label" = "速度";
+"recording.tempo_unit" = "BPM";
+"recording.ascending_count_label" = "上行次数";
+"recording.ascending_count_unit" = "次";
+"recording.pattern_label" = "进行模式";
+"recording.pattern_ascending_only" = "仅上行";
+"recording.pattern_descending_only" = "仅下行";
+"recording.pattern_ascending_then_descending" = "上行→下行";
+"recording.pattern_descending_then_ascending" = "下行→上行";
+"recording.key_ascending_count" = "调上行";
+"recording.key_descending_count" = "调下行";
+"recording.key_count_unit" = "次";
+"recording.ascending_interval" = "上行音程";
+"recording.descending_interval" = "下行音程";
+"recording.count_label" = "次数：";
+"recording.interval_label" = "音程：";
+"recording.interval_semitone" = "半音";
+"recording.interval_whole_tone" = "全音";
+"recording.interval_minor_third" = "小三度";
+"recording.interval_major_third" = "大三度";
+"recording.hide_settings" = "隐藏设置";
+"recording.show_settings" = "显示设置";
+"recording.realtime_spectrum_title" = "实时频谱";
+"recording.indicator_title" = "指示器";
+"recording.audio_level" = "音量：";
+"recording.pitch_label" = "音高：";
+"recording.pitch_indicator_title" = "音高指示器";
+"recording.pitch_target" = "目标：";
+"recording.pitch_detected" = "检测：";
+"recording.realtime_placeholder" = "开始录音或播放后显示";
+"recording.start_button" = "开始录音";
+"recording.preparing" = "准备中...";
+"recording.stop_button" = "停止录音";
+"recording.play_last_button" = "播放上次录音";
+"recording.stop_playback_button" = "停止";
+"recording.analyze_button" = "分析录音";
+"recording.countdown_message" = "倒计时中...";
+
+// MARK: - RecordingListView
+"list.title" = "录音列表";
+"list.empty_title" = "暂无录音";
+"list.empty_message" = "从录音界面开始练习";
+"list.delete_confirmation_title" = "确认删除";
+"list.delete_confirmation_message" = "确定要删除这个录音吗？";
+"list.select_recording" = "选择录音";
+
+// MARK: - Playback Controls
+"play" = "播放";
+"pause" = "暂停";
+"previous.recording" = "上一个录音";
+"next.recording" = "下一个录音";
+
+// MARK: - AnalysisView
+"analysis.title" = "录音分析";
+"analysis.analyzing" = "分析中...";
+"analysis.error" = "分析错误";
+"analysis.info_title" = "录音信息";
+"analysis.info_datetime" = "日期时间";
+"analysis.info_duration" = "时长";
+"analysis.info_scale" = "音阶";
+"analysis.info_pitch" = "音高";
+"analysis.info_tempo" = "速度";
+"analysis.info_ascending_count" = "上行次数";
+"analysis.playback_title" = "播放控制";
+"analysis.spectrogram_title" = "频谱图";
+"analysis.pitch_graph_title" = "音高分析";
+"analysis.pitch_bar_title" = "音准";
+"analysis.target_scale" = "目标音阶";
+"analysis.detected_pitch" = "检测音高";
+"analysis.close_expanded_view" = "关闭展开视图";
+"analysis.playing" = "播放中";
+"analysis.paused" = "已暂停";
+"analysis.no_spectrum_data" = "无频谱数据";
+"analysis.no_pitch_data" = "无音高数据";
+
+// MARK: - SettingsView
+"settings.title" = "设置";
+"settings.language_section" = "语言";
+"settings.language_label" = "语言";
+"settings.language_japanese" = "日本語";
+"settings.language_english" = "English";
+"settings.language_chinese_simplified" = "简体中文";
+"settings.language_chinese_traditional" = "繁體中文";
+"settings.language_korean" = "한국어";
+"settings.language_spanish" = "Español";
+"settings.language_french" = "Français";
+"settings.language_german" = "Deutsch";
+"settings.info_section" = "信息";
+"settings.version_label" = "版本";
+
+// MARK: - Presets
+"preset.title" = "预设";
+"preset.save_button" = "保存当前设置";
+"preset.load_button" = "选择预设";
+"preset.save_dialog_title" = "保存预设";
+"preset.name_placeholder" = "输入预设名称";
+"preset.save" = "保存";
+"preset.empty_title" = "暂无预设";
+"preset.empty_message" = "保存当前设置以便下次快速加载";
+"preset.save_error" = "保存预设失败";
+"preset.delete_error" = "删除预设失败";
+"preset.delete_confirmation_title" = "确认删除";
+"preset.delete_confirmation_message" = "确定要删除这个预设吗？";
+
+// MARK: - Scale Notes
+"scale.note_do" = "C";
+"scale.note_re" = "D";
+"scale.note_mi" = "E";
+"scale.note_fa" = "F";
+"scale.note_so" = "G";
+
+// MARK: - Scale Pattern Names
+// Note: Scale names now use recording.scale_* keys for consistency
+
+// MARK: - PaywallView
+"paywall.title" = "高级版";
+"paywall.close" = "关闭";
+"paywall.purchase_complete" = "购买完成";
+"paywall.purchase_complete_message" = "您的订阅购买已完成。";
+"paywall.unlock_unlimited" = "解锁无限录音";
+"paywall.unlimited_description" = "使用高级版每天无限次录音";
+"paywall.current" = "当前";
+"paywall.free_limit" = "每天5次 / 最长30秒";
+"paywall.premium" = "高级版";
+"paywall.premium_monthly" = "高级版（月度）";
+"paywall.premium_limit" = "无限制 / 最长5分钟";
+"paywall.price_monthly" = "$5.00/月";
+"paywall.price_per_month" = "%@/月";
+"paywall.subscription_period" = "月度自动续订订阅";
+"paywall.purchase" = "购买";
+"paywall.restore" = "恢复购买";
+"paywall.terms_agreement" = "购买即表示您同意使用条款和隐私政策";
+"paywall.terms" = "使用条款";
+"paywall.privacy" = "隐私政策";
+"paywall.terms_url" = "https://vocalisstudio.github.io/web/terms_en.html";
+"paywall.privacy_url" = "https://vocalisstudio.github.io/web/privacy_en.html";
+"paywall.recommended" = "推荐";
+"paywall.price_free" = "免费";
+"paywall.premium_plus" = "高级版Plus";
+"paywall.price_pro" = "$9.99/月";
+"paywall.loading" = "加载中...";
+
+// MARK: - Subscription Period (Apple requirement: display subscription length)
+"subscription.period.per_day" = "%@/日";
+"subscription.period.per_days" = "%@/%d日";
+"subscription.period.per_week" = "%@/周";
+"subscription.period.per_weeks" = "%@/%d周";
+"subscription.period.per_month" = "%@/月";
+"subscription.period.per_months" = "%@/%d个月";
+"subscription.period.per_year" = "%@/年";
+"subscription.period.per_years" = "%@/%d年";
+"subscription.auto_renew.daily" = "每日自动续订订阅";
+"subscription.auto_renew.days" = "每%d日自动续订";
+"subscription.auto_renew.weekly" = "每周自动续订订阅";
+"subscription.auto_renew.weeks" = "每%d周自动续订";
+"subscription.auto_renew.monthly" = "每月自动续订订阅";
+"subscription.auto_renew.months" = "每%d个月自动续订";
+"subscription.auto_renew.yearly" = "每年自动续订订阅";
+"subscription.auto_renew.years" = "每%d年自动续订";
+
+// MARK: - SubscriptionManagementView
+"subscription.title" = "订阅管理";
+"subscription.close" = "关闭";
+"subscription.active" = "已激活";
+"subscription.inactive" = "未激活";
+"subscription.purchase_date" = "购买日期";
+"subscription.expiration_date" = "到期日期";
+"subscription.auto_renewal" = "自动续订";
+"subscription.version" = "版本";
+"subscription.available_features" = "可用功能";
+"subscription.restore" = "恢复购买";
+"subscription.cancel" = "取消订阅";
+"subscription.upgrade" = "升级";
+"subscription.upgrade_to_plus" = "升级到 Premium Plus";
+"subscription.not_found" = "未找到订阅信息";
+"subscription.reload" = "重新加载";
+"subscription.minimum_tier" = "或更高";
+
+// MARK: - AudioOutputSettingsView
+"output.title" = "输出设置";
+"output.scale_volume" = "音阶播放音量";
+"output.recording_volume" = "录音播放音量";
+"output.volume_settings" = "音量设置";
+"output.volume_description" = "分别调整音阶播放和录音播放音量";
+"output.sound_source" = "音源";
+"output.scale_sound" = "音阶声音";
+"output.reset_default" = "恢复默认";
+"output.reset_confirmation" = "确定要将输出设置恢复为默认值吗？";
+"output.reset" = "重置";
+"output.save_error" = "保存错误";
+"output.save_failed" = "保存设置失败";
+"output.reset_failed" = "重置设置失败";
+
+// MARK: - Scale Sound Types
+"sound.acoustic_grand_piano" = "钢琴";
+"sound.electric_piano" = "电钢琴";
+"sound.acoustic_guitar" = "吉他";
+"sound.vibraphone" = "颤音琴";
+"sound.marimba" = "马林巴";
+"sound.flute" = "长笛";
+"sound.clarinet" = "单簧管";
+"sound.sine_wave" = "正弦波";
+"sound.acoustic_grand_piano.desc" = "最常见的音色";
+"sound.electric_piano.desc" = "明亮华丽的音色";
+"sound.acoustic_guitar.desc" = "柔和温暖的音色";
+"sound.vibraphone.desc" = "泛音少易辨别";
+"sound.marimba.desc" = "温暖柔和的音色";
+"sound.flute.desc" = "清澈纯净的音色";
+"sound.clarinet.desc" = "接近人声音域";
+"sound.sine_wave.desc" = "纯音精确确认音高";
+
+// MARK: - AudioInputSettingsView
+"input.title" = "输入设置";
+"input.detection_sensitivity" = "检测灵敏度";
+"input.sensitivity_low" = "低";
+"input.sensitivity_normal" = "正常";
+"input.sensitivity_high" = "高";
+"input.pitch_detection_sensitivity" = "音高检测灵敏度";
+"input.sensitivity_description" = "低：仅检测大声音\n正常：平衡检测\n高：也检测小声音";
+"input.detection_accuracy" = "检测精度";
+"input.pitch_detection_accuracy" = "音高检测精度";
+"input.accuracy_description" = "检测结果的置信度阈值。较高的值仅显示准确的音高";
+"input.reset_confirmation" = "确定要将输入设置恢复为默认值吗？";
+"input.save_failed" = "保存设置失败";
+"input.reset_failed" = "重置设置失败";
+
+// Pitch Algorithm Settings
+"input.pitch_algorithm" = "音高算法";
+"input.pitch_algorithm_section" = "音高检测算法";
+"algorithm.yin" = "YIN";
+"algorithm.yin.desc" = "标准音高检测算法。广泛使用的方法。";
+"algorithm.pyin" = "pYIN";
+"algorithm.pyin.desc" = "注重时间方向稳定性。适合需要减少检测波动的情况。";
+"algorithm.pyin_high_detection" = "pYIN（高检测）";
+"algorithm.pyin_high_detection.desc" = "优化以检测更多音高。适合信号较弱的声音。";
+"algorithm.pyin_balanced" = "pYIN（平衡）";
+"algorithm.pyin_balanced.desc" = "平衡检测率和准确度。";
+"algorithm.pyin_aggressive" = "pYIN（激进）";
+"algorithm.pyin_aggressive.desc" = "检测低置信度音高。检测率高但可能包含噪音。";
+"algorithm.fcpe" = "FCPE (ML)";
+"algorithm.fcpe.desc" = "高精度稳定检测。适合大多数情况。（推荐）";
+
+// MARK: - AlgorithmSettingsView
+"algorithm.title" = "算法设置";
+"algorithm.pitch_analysis" = "音高分析";
+"algorithm.section_description" = "选择用于分析录音的音高检测算法";
+"algorithm.reset_confirmation" = "确定要将算法设置恢复为默认值吗？";
+"algorithm.save_failed" = "保存设置失败";
+"algorithm.reset_failed" = "重置设置失败";
+"settings.algorithm_section" = "算法";
+"settings.algorithm_settings" = "算法设置";
+
+// MARK: - SettingsView Additional
+"settings.subscription_section" = "订阅";
+"settings.manage_subscription" = "管理订阅";
+"settings.audio_section" = "音频";
+"settings.input_settings" = "输入设置";
+"settings.output_settings" = "输出设置";
+"settings.terms_section" = "条款与政策";
+"settings.terms" = "使用条款";
+"settings.privacy" = "隐私政策";
+"settings.terms_url" = "https://vocalisstudio.github.io/web/terms_en.html";
+"settings.privacy_url" = "https://vocalisstudio.github.io/web/privacy_en.html";
+
+// MARK: - HomeView Additional
+"home.unlock_unlimited" = "解锁无限录音";
+"home.premium_no_limit" = "高级版无限制";
+
+// MARK: - AnalysisView Additional
+"analysis.fullscreen" = "全屏";
+"analysis.close" = "关闭";
+"analysis.legend_target" = "目标音阶";
+"analysis.legend_detected" = "检测音高";
+"analysis.statistics_button" = "统计";
+"analysis.statistics_short" = "统计";
+"analysis.no_scale" = "无已录制音阶";
+
+// MARK: - Statistics
+"statistics.title" = "统计";
+"statistics.overall" = "总体";
+"statistics.avg_deviation" = "平均偏差";
+"statistics.deviation_stddev" = "波动性";
+"statistics.median_deviation" = "中位数";
+"statistics.detection_rate" = "检测率";
+"statistics.vocal_range" = "音域";
+"statistics.total_samples" = "样本";
+"statistics.by_position" = "按音阶位置";
+"statistics.position_suffix" = "位";
+"statistics.by_pitch" = "按音高";
+"statistics.notes_detected" = " 音";
+"statistics.times" = "×";
+"statistics.cents" = "音分";
+"statistics.no_data" = "无数据";
+"statistics.vibrato" = "颤音";
+"statistics.vibrato_rate" = "平均速度";
+"statistics.vibrato_extent" = "平均幅度";
+"statistics.vibrato_regularity" = "规则性";
+"statistics.vibrato_presence" = "检出率";
+"statistics.vibrato_segments" = "分析片段数";
+"statistics.vibrato_no_data" = "数据不足";
+"statistics.pitch_analysis" = "音高分析";
+"statistics.spectrum_analysis" = "频谱分析";
+"statistics.high_freq_resonance" = "高频共鸣";
+"statistics.brightness_short" = "Brightness (亮度)";
+"statistics.air_short" = "Airiness (气息)";
+"statistics.singers_formant" = "歌者共振峰";
+"statistics.sf_ratio" = "能量比率";
+"statistics.sf_intensity" = "强度差";
+"statistics.sf_no_data" = "无数据";
+
+// MARK: - DebugMenuView
+"debug.paywall" = "高级版（付费墙）";
+"debug.subscription_management" = "订阅管理";
+"debug.reset_confirmation" = "将重置录音次数。确定吗？";
+"debug.current_tier" = "当前";
+"debug.reset_recording_count" = "重置录音次数";
+
+// MARK: - Recording Limit
+"recording.limit_reached" = "已达到今日录音上限（%@计划）";
+
+// MARK: - MIDI Range Warning
+"warning.midi_range.title" = "配置错误";
+"warning.midi_range.too_high" = "音域过高";
+"warning.midi_range.too_low" = "音域过低";
+"warning.midi_range.hint" = "请调整键数或间隔";

@@ -1,0 +1,361 @@
+/*
+  Localizable.strings (Korean)
+  VocalisStudio
+*/
+
+// MARK: - Common
+"app_name" = "Vocalis Studio";
+"ok" = "확인";
+"cancel" = "취소";
+"save" = "저장";
+"delete" = "삭제";
+"error" = "오류";
+"alert.notice" = "알림";
+
+// MARK: - HomeView
+"home.record_button" = "녹음 시작";
+"home.list_button" = "녹음 목록";
+"home.settings_button" = "설정";
+
+// MARK: - RecordingView
+"recording.title" = "녹음";
+"recording.list_button" = "목록";
+"recording.rename" = "이름 변경";
+"recording.rename.title" = "녹음 이름 변경";
+"recording.rename.placeholder" = "녹음 이름";
+"recording.rename.message" = "새 녹음 이름을 입력하세요";
+"recording.delete.title" = "녹음 삭제";
+"recording.delete.message" = "이 녹음을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.";
+"recording.settings_title" = "스케일 설정";
+"recording.scale_label" = "스케일";
+"recording.scale_five_tone" = "5음계";
+"recording.scale_octave_repeat" = "옥타브 반복";
+"recording.scale_broken" = "분산 스케일";
+"recording.scale_rossini" = "1.5옥타브";
+"recording.scale_arpeggio_down_triple" = "아르페지오 하행 트리플";
+"recording.scale_off" = "끄기";
+"recording.start_pitch_label" = "시작 음높이";
+"recording.tempo_label" = "템포";
+"recording.tempo_unit" = "BPM";
+"recording.ascending_count_label" = "상행 횟수";
+"recording.ascending_count_unit" = "회";
+"recording.pattern_label" = "진행 패턴";
+"recording.pattern_ascending_only" = "상행만";
+"recording.pattern_descending_only" = "하행만";
+"recording.pattern_ascending_then_descending" = "상행→하행";
+"recording.pattern_descending_then_ascending" = "하행→상행";
+"recording.key_ascending_count" = "키 상행";
+"recording.key_descending_count" = "키 하행";
+"recording.key_count_unit" = "회";
+"recording.ascending_interval" = "상행 음정";
+"recording.descending_interval" = "하행 음정";
+"recording.count_label" = "횟수:";
+"recording.interval_label" = "음정:";
+"recording.interval_semitone" = "반음";
+"recording.interval_whole_tone" = "온음";
+"recording.interval_minor_third" = "단3도";
+"recording.interval_major_third" = "장3도";
+"recording.hide_settings" = "설정 숨기기";
+"recording.show_settings" = "설정 표시";
+"recording.realtime_spectrum_title" = "실시간 스펙트럼";
+"recording.indicator_title" = "인디케이터";
+"recording.audio_level" = "음량:";
+"recording.pitch_label" = "음높이:";
+"recording.pitch_indicator_title" = "음높이 인디케이터";
+"recording.pitch_target" = "목표:";
+"recording.pitch_detected" = "감지:";
+"recording.realtime_placeholder" = "녹음 또는 재생 시작 후 표시됩니다";
+"recording.start_button" = "녹음 시작";
+"recording.preparing" = "준비 중...";
+"recording.stop_button" = "녹음 중지";
+"recording.play_last_button" = "마지막 녹음 재생";
+"recording.stop_playback_button" = "중지";
+"recording.countdown_message" = "카운트다운 중...";
+
+// MARK: - RecordingListView
+"list.title" = "녹음 목록";
+"list.empty_title" = "녹음 없음";
+"list.empty_message" = "녹음 화면에서 연습을 시작하세요";
+"list.delete_confirmation_title" = "삭제 확인";
+"list.delete_confirmation_message" = "이 녹음을 삭제하시겠습니까?";
+"list.select_recording" = "녹음 선택";
+
+// MARK: - Playback Controls
+"play" = "재생";
+"pause" = "일시정지";
+"previous.recording" = "이전 녹음";
+"next.recording" = "다음 녹음";
+
+// MARK: - AnalysisView
+"analysis.title" = "녹음 분석";
+"analysis.analyzing" = "분석 중...";
+"analysis.error" = "분석 오류";
+"analysis.info_title" = "녹음 정보";
+"analysis.info_datetime" = "날짜 시간";
+"analysis.info_duration" = "길이";
+"analysis.info_scale" = "스케일";
+"analysis.info_pitch" = "음높이";
+"analysis.info_tempo" = "템포";
+"analysis.info_ascending_count" = "상행 횟수";
+"analysis.playback_title" = "재생 컨트롤";
+"analysis.spectrogram_title" = "스펙트로그램";
+"analysis.pitch_graph_title" = "음높이 분석";
+"analysis.pitch_bar_title" = "음정 정확도";
+"analysis.target_scale" = "목표 스케일";
+"analysis.detected_pitch" = "감지된 음높이";
+"analysis.close_expanded_view" = "확대 보기 닫기";
+"analysis.playing" = "재생 중";
+"analysis.paused" = "일시정지됨";
+"analysis.no_spectrum_data" = "스펙트럼 데이터 없음";
+"analysis.no_pitch_data" = "음높이 데이터 없음";
+
+// MARK: - SettingsView
+"settings.title" = "설정";
+"settings.language_section" = "언어";
+"settings.language_label" = "언어";
+"settings.language_japanese" = "日本語";
+"settings.language_english" = "English";
+"settings.language_chinese_simplified" = "简体中文";
+"settings.language_chinese_traditional" = "繁體中文";
+"settings.language_korean" = "한국어";
+"settings.language_spanish" = "Español";
+"settings.language_french" = "Français";
+"settings.language_german" = "Deutsch";
+"settings.info_section" = "정보";
+"settings.version_label" = "버전";
+
+// MARK: - Presets
+"preset.title" = "프리셋";
+"preset.save_button" = "현재 설정 저장";
+"preset.load_button" = "프리셋 선택";
+"preset.save_dialog_title" = "프리셋 저장";
+"preset.name_placeholder" = "프리셋 이름 입력";
+"preset.save" = "저장";
+"preset.empty_title" = "프리셋 없음";
+"preset.empty_message" = "현재 설정을 저장하여 다음에 빠르게 불러올 수 있습니다";
+"preset.save_error" = "프리셋 저장 실패";
+"preset.delete_error" = "프리셋 삭제 실패";
+"preset.delete_confirmation_title" = "삭제 확인";
+"preset.delete_confirmation_message" = "이 프리셋을 삭제하시겠습니까?";
+
+// MARK: - Scale Notes
+"scale.note_do" = "C";
+"scale.note_re" = "D";
+"scale.note_mi" = "E";
+"scale.note_fa" = "F";
+"scale.note_so" = "G";
+
+// MARK: - Scale Pattern Names
+// Note: Scale names now use recording.scale_* keys for consistency
+
+// MARK: - PaywallView
+"paywall.title" = "프리미엄";
+"paywall.close" = "닫기";
+"paywall.purchase_complete" = "구매 완료";
+"paywall.purchase_complete_message" = "구독 구매가 완료되었습니다.";
+"paywall.unlock_unlimited" = "무제한 녹음 해제";
+"paywall.unlimited_description" = "프리미엄으로 매일 무제한 녹음";
+"paywall.current" = "현재";
+"paywall.free_limit" = "하루 5회 / 최대 30초";
+"paywall.premium" = "프리미엄";
+"paywall.premium_monthly" = "프리미엄 (월간)";
+"paywall.premium_limit" = "무제한 / 최대 5분";
+"paywall.price_monthly" = "$5.00/월";
+"paywall.price_per_month" = "%@/월";
+"paywall.subscription_period" = "월간 자동 갱신 구독";
+"paywall.purchase" = "구매";
+"paywall.restore" = "구매 복원";
+"paywall.terms_agreement" = "구매 시 이용약관 및 개인정보 처리방침에 동의하는 것으로 간주됩니다";
+"paywall.terms" = "이용약관";
+"paywall.privacy" = "개인정보 처리방침";
+"paywall.terms_url" = "https://vocalisstudio.github.io/web/terms_en.html";
+"paywall.privacy_url" = "https://vocalisstudio.github.io/web/privacy_en.html";
+"paywall.recommended" = "추천";
+"paywall.price_free" = "무료";
+"paywall.premium_plus" = "프리미엄 플러스";
+"paywall.price_pro" = "$9.99/월";
+"paywall.loading" = "로딩 중...";
+
+// MARK: - Subscription Period (Apple requirement: display subscription length)
+"subscription.period.per_day" = "%@/일";
+"subscription.period.per_days" = "%@/%d일";
+"subscription.period.per_week" = "%@/주";
+"subscription.period.per_weeks" = "%@/%d주";
+"subscription.period.per_month" = "%@/월";
+"subscription.period.per_months" = "%@/%d개월";
+"subscription.period.per_year" = "%@/년";
+"subscription.period.per_years" = "%@/%d년";
+"subscription.auto_renew.daily" = "일일 자동 갱신 구독";
+"subscription.auto_renew.days" = "%d일마다 자동 갱신";
+"subscription.auto_renew.weekly" = "주간 자동 갱신 구독";
+"subscription.auto_renew.weeks" = "%d주마다 자동 갱신";
+"subscription.auto_renew.monthly" = "월간 자동 갱신 구독";
+"subscription.auto_renew.months" = "%d개월마다 자동 갱신";
+"subscription.auto_renew.yearly" = "연간 자동 갱신 구독";
+"subscription.auto_renew.years" = "%d년마다 자동 갱신";
+
+// MARK: - SubscriptionManagementView
+"subscription.title" = "구독 관리";
+"subscription.close" = "닫기";
+"subscription.active" = "활성";
+"subscription.inactive" = "비활성";
+"subscription.purchase_date" = "구매 날짜";
+"subscription.expiration_date" = "만료 날짜";
+"subscription.auto_renewal" = "자동 갱신";
+"subscription.version" = "버전";
+"subscription.available_features" = "사용 가능한 기능";
+"subscription.restore" = "구매 복원";
+"subscription.cancel" = "구독 취소";
+"subscription.upgrade" = "업그레이드";
+"subscription.upgrade_to_plus" = "Premium Plus로 업그레이드";
+"subscription.not_found" = "구독 정보를 찾을 수 없습니다";
+"subscription.reload" = "새로고침";
+"subscription.minimum_tier" = "이상";
+
+// MARK: - AudioOutputSettingsView
+"output.title" = "출력 설정";
+"output.scale_volume" = "스케일 재생 음량";
+"output.recording_volume" = "녹음 재생 음량";
+"output.volume_settings" = "음량 설정";
+"output.volume_description" = "스케일 재생과 녹음 재생 음량을 개별적으로 조절";
+"output.sound_source" = "음원";
+"output.scale_sound" = "스케일 사운드";
+"output.reset_default" = "기본값으로 복원";
+"output.reset_confirmation" = "출력 설정을 기본값으로 복원하시겠습니까?";
+"output.reset" = "재설정";
+"output.save_error" = "저장 오류";
+"output.save_failed" = "설정 저장 실패";
+"output.reset_failed" = "설정 재설정 실패";
+
+// MARK: - Scale Sound Types
+"sound.acoustic_grand_piano" = "피아노";
+"sound.electric_piano" = "일렉트릭 피아노";
+"sound.acoustic_guitar" = "기타";
+"sound.vibraphone" = "비브라폰";
+"sound.marimba" = "마림바";
+"sound.flute" = "플루트";
+"sound.clarinet" = "클라리넷";
+"sound.sine_wave" = "사인파";
+"sound.acoustic_grand_piano.desc" = "가장 일반적인 음색";
+"sound.electric_piano.desc" = "밝고 화려한 음색";
+"sound.acoustic_guitar.desc" = "부드럽고 따뜻한 음색";
+"sound.vibraphone.desc" = "배음이 적어 명확함";
+"sound.marimba.desc" = "따뜻하고 부드러운 음색";
+"sound.flute.desc" = "맑고 깨끗한 음색";
+"sound.clarinet.desc" = "성악 음역에 가까움";
+"sound.sine_wave.desc" = "순음으로 정확한 음높이 확인";
+
+// MARK: - AudioInputSettingsView
+"input.title" = "입력 설정";
+"input.detection_sensitivity" = "감지 감도";
+"input.sensitivity_low" = "낮음";
+"input.sensitivity_normal" = "보통";
+"input.sensitivity_high" = "높음";
+"input.pitch_detection_sensitivity" = "음높이 감지 감도";
+"input.sensitivity_description" = "낮음: 큰 소리만 감지\n보통: 균형 잡힌 감지\n높음: 작은 소리도 감지";
+"input.detection_accuracy" = "감지 정확도";
+"input.pitch_detection_accuracy" = "음높이 감지 정확도";
+"input.accuracy_description" = "감지 결과의 신뢰도 임계값. 높을수록 정확한 음높이만 표시";
+"input.reset_confirmation" = "입력 설정을 기본값으로 복원하시겠습니까?";
+"input.save_failed" = "설정 저장 실패";
+"input.reset_failed" = "설정 재설정 실패";
+
+// Pitch Algorithm Settings
+"input.pitch_algorithm" = "피치 알고리즘";
+"input.pitch_algorithm_section" = "피치 감지 알고리즘";
+"algorithm.yin" = "YIN";
+"algorithm.yin.desc" = "표준 피치 감지 알고리즘. 널리 사용되는 방법.";
+"algorithm.pyin" = "pYIN";
+"algorithm.pyin.desc" = "시간적 안정성 중시. 감지 변동을 줄이고 싶을 때 적합.";
+"algorithm.pyin_high_detection" = "pYIN (고감지)";
+"algorithm.pyin_high_detection.desc" = "더 많은 피치 감지에 최적화. 신호가 약한 목소리에 적합.";
+"algorithm.pyin_balanced" = "pYIN (균형)";
+"algorithm.pyin_balanced.desc" = "감지율과 정확도의 균형.";
+"algorithm.pyin_aggressive" = "pYIN (공격적)";
+"algorithm.pyin_aggressive.desc" = "저신뢰도 피치도 감지. 감지율은 높지만 노이즈 포함 가능.";
+"algorithm.fcpe" = "FCPE (ML)";
+"algorithm.fcpe.desc" = "정확하고 안정적인 감지. 대부분의 상황에 최적. (권장)";
+
+// MARK: - AlgorithmSettingsView
+"algorithm.title" = "알고리즘 설정";
+"algorithm.pitch_analysis" = "피치 분석";
+"algorithm.section_description" = "녹음 분석에 사용할 피치 감지 알고리즘을 선택하세요";
+"algorithm.reset_confirmation" = "알고리즘 설정을 기본값으로 재설정하시겠습니까?";
+"algorithm.save_failed" = "설정 저장 실패";
+"algorithm.reset_failed" = "설정 재설정 실패";
+"settings.algorithm_section" = "알고리즘";
+"settings.algorithm_settings" = "알고리즘 설정";
+
+// MARK: - SettingsView Additional
+"settings.subscription_section" = "구독";
+"settings.manage_subscription" = "구독 관리";
+"settings.audio_section" = "오디오";
+"settings.input_settings" = "입력 설정";
+"settings.output_settings" = "출력 설정";
+"settings.terms_section" = "약관 및 정책";
+"settings.terms" = "이용약관";
+"settings.privacy" = "개인정보 처리방침";
+"settings.terms_url" = "https://vocalisstudio.github.io/web/terms_en.html";
+"settings.privacy_url" = "https://vocalisstudio.github.io/web/privacy_en.html";
+
+// MARK: - HomeView Additional
+"home.unlock_unlimited" = "무제한 녹음 해제";
+"home.premium_no_limit" = "프리미엄으로 무제한";
+
+// MARK: - AnalysisView Additional
+"analysis.fullscreen" = "전체 화면";
+"analysis.close" = "닫기";
+"analysis.legend_target" = "목표 스케일";
+"analysis.legend_detected" = "감지된 음높이";
+"analysis.statistics_button" = "통계";
+"analysis.statistics_short" = "통계";
+"analysis.no_scale" = "녹음된 스케일 없음";
+
+// MARK: - Statistics
+"statistics.title" = "통계";
+"statistics.overall" = "전체";
+"statistics.avg_deviation" = "평균 편차";
+"statistics.deviation_stddev" = "변동성";
+"statistics.median_deviation" = "중앙값";
+"statistics.detection_rate" = "감지율";
+"statistics.vocal_range" = "음역";
+"statistics.total_samples" = "샘플";
+"statistics.by_position" = "스케일 위치별";
+"statistics.position_suffix" = "번째";
+"statistics.by_pitch" = "음높이별";
+"statistics.notes_detected" = " 음";
+"statistics.times" = "×";
+"statistics.cents" = "센트";
+"statistics.no_data" = "데이터 없음";
+"statistics.vibrato" = "비브라토";
+"statistics.vibrato_rate" = "평균 속도";
+"statistics.vibrato_extent" = "평균 진폭";
+"statistics.vibrato_regularity" = "규칙성";
+"statistics.vibrato_presence" = "검출률";
+"statistics.vibrato_segments" = "분석 세그먼트 수";
+"statistics.vibrato_no_data" = "데이터 부족";
+"statistics.pitch_analysis" = "피치 분석";
+"statistics.spectrum_analysis" = "스펙트럼 분석";
+"statistics.high_freq_resonance" = "고주파 공명";
+"statistics.brightness_short" = "Brightness (밝기)";
+"statistics.air_short" = "Airiness (공기감)";
+"statistics.singers_formant" = "가수의 포먼트";
+"statistics.sf_ratio" = "에너지 비율";
+"statistics.sf_intensity" = "강도 차이";
+"statistics.sf_no_data" = "데이터 없음";
+
+// MARK: - DebugMenuView
+"debug.paywall" = "프리미엄 (페이월)";
+"debug.subscription_management" = "구독 관리";
+"debug.reset_confirmation" = "녹음 횟수가 재설정됩니다. 계속하시겠습니까?";
+"debug.current_tier" = "현재";
+"debug.reset_recording_count" = "녹음 횟수 재설정";
+
+// MARK: - Recording Limit
+"recording.limit_reached" = "오늘의 녹음 한도에 도달했습니다 (%@ 플랜)";
+
+// MARK: - MIDI Range Warning
+"warning.midi_range.title" = "설정 오류";
+"warning.midi_range.too_high" = "음역이 너무 높습니다";
+"warning.midi_range.too_low" = "음역이 너무 낮습니다";
+"warning.midi_range.hint" = "키 수나 간격을 조정하세요";
