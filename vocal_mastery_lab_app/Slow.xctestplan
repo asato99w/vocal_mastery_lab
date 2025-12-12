@@ -1,0 +1,33 @@
+{
+  "configurations" : [
+    {
+      "id" : "8C9D1E2F-3A4B-5C6D-7E8F-9A1B2C3D4E5F",
+      "name" : "Slow Tests",
+      "options" : {
+        "testRepetitionMode" : "none"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:VocalMasteryLab.xcodeproj",
+      "identifier" : "VocalMasteryLab",
+      "name" : "VocalMasteryLab"
+    }
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "RealtimePitchDetectorTests",
+        "AudioSessionManagerTests"
+      ],
+      "target" : {
+        "containerPath" : "container:VocalMasteryLab.xcodeproj",
+        "identifier" : "VocalMasteryLabTests",
+        "name" : "VocalMasteryLabTests"
+      }
+    }
+  ],
+  "version" : 1
+}

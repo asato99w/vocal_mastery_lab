@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "9D1E2F3A-4B5C-6D7E-8F9A-1B2C3D4E5F6A",
+      "name" : "All Tests",
+      "options" : {
+        "testRepetitionMode" : "none"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:VocalMasteryLab.xcodeproj",
+      "identifier" : "VocalMasteryLab",
+      "name" : "VocalMasteryLab"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:VocalMasteryLab.xcodeproj",
+        "identifier" : "VocalMasteryLabTests",
+        "name" : "VocalMasteryLabTests"
+      }
+    }
+  ],
+  "version" : 1
+}
