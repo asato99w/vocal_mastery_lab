@@ -69,7 +69,6 @@ final class AVAudioPlayerWrapperTests: XCTestCase {
 fileprivate class MockAudioSettingsRepositoryForPlayer: AudioSettingsRepositoryProtocol {
     func get() -> AudioDetectionSettings {
         return AudioDetectionSettings(
-            scalePlaybackVolume: 1.0,
             recordingPlaybackVolume: 1.0,
             rmsSilenceThreshold: 0.01,
             confidenceThreshold: 0.3

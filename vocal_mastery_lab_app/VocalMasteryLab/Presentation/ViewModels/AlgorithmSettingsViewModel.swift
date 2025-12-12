@@ -41,19 +41,17 @@ final class AlgorithmSettingsViewModel: ObservableObject {
     /// Save current settings to repository
     func saveSettings() throws {
         // Get current full settings and update only algorithm property
-        var settings = repository.get()
-        settings = AudioDetectionSettings(
-            scalePlaybackVolume: settings.scalePlaybackVolume,
+        let settings = repository.get()
+        let newSettings = AudioDetectionSettings(
             recordingPlaybackVolume: settings.recordingPlaybackVolume,
             rmsSilenceThreshold: settings.rmsSilenceThreshold,
             confidenceThreshold: settings.confidenceThreshold,
-            scaleSoundType: settings.scaleSoundType,
             pitchAlgorithm: pitchAlgorithm
         )
-        try repository.save(settings)
+        try repository.save(newSettings)
 
         // Update original settings after successful save
-        originalSettings = settings
+        originalSettings = newSettings
     }
 
     /// Reset algorithm settings to defaults
@@ -62,19 +60,17 @@ final class AlgorithmSettingsViewModel: ObservableObject {
         let defaultSettings = AudioDetectionSettings.default
 
         // Get current settings and update only algorithm property
-        var currentSettings = repository.get()
-        currentSettings = AudioDetectionSettings(
-            scalePlaybackVolume: currentSettings.scalePlaybackVolume,
+        let currentSettings = repository.get()
+        let newSettings = AudioDetectionSettings(
             recordingPlaybackVolume: currentSettings.recordingPlaybackVolume,
             rmsSilenceThreshold: currentSettings.rmsSilenceThreshold,
             confidenceThreshold: currentSettings.confidenceThreshold,
-            scaleSoundType: currentSettings.scaleSoundType,
             pitchAlgorithm: defaultSettings.pitchAlgorithm
         )
-        try repository.save(currentSettings)
+        try repository.save(newSettings)
 
         // Update UI
         pitchAlgorithm = defaultSettings.pitchAlgorithm
-        originalSettings = currentSettings
+        originalSettings = newSettings
     }
 }

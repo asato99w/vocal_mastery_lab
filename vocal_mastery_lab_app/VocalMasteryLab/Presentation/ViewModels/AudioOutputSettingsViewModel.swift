@@ -2,15 +2,13 @@ import Foundation
 import Combine
 import VocalisDomain
 
-/// ViewModel for audio output settings (volumes and scale sound type)
+/// ViewModel for audio output settings (recording playback volume)
 @MainActor
 final class AudioOutputSettingsViewModel: ObservableObject {
 
     // MARK: - Published Properties
 
-    @Published var scalePlaybackVolume: Float
     @Published var recordingPlaybackVolume: Float
-    @Published var scaleSoundType: ScaleSoundType
 
     // MARK: - Private Properties
 
@@ -22,9 +20,7 @@ final class AudioOutputSettingsViewModel: ObservableObject {
     /// Whether the current settings differ from saved settings
     var hasChanges: Bool {
         let settings = repository.get()
-        return scalePlaybackVolume != settings.scalePlaybackVolume ||
-               recordingPlaybackVolume != settings.recordingPlaybackVolume ||
-               scaleSoundType != settings.scaleSoundType
+        return recordingPlaybackVolume != settings.recordingPlaybackVolume
     }
 
     // MARK: - Initialization
@@ -36,10 +32,8 @@ final class AudioOutputSettingsViewModel: ObservableObject {
         let settings = repository.get()
         self.originalSettings = settings
 
-        // Initialize published properties (output-related only)
-        self.scalePlaybackVolume = settings.scalePlaybackVolume
+        // Initialize published properties
         self.recordingPlaybackVolume = settings.recordingPlaybackVolume
-        self.scaleSoundType = settings.scaleSoundType
     }
 
     // MARK: - Public Methods
@@ -47,13 +41,12 @@ final class AudioOutputSettingsViewModel: ObservableObject {
     /// Save current settings to repository
     func saveSettings() throws {
         // Get current full settings and update only output-related properties
-        var settings = repository.get()
-        settings = AudioDetectionSettings(
-            scalePlaybackVolume: scalePlaybackVolume,
+        let currentSettings = repository.get()
+        let settings = AudioDetectionSettings(
             recordingPlaybackVolume: recordingPlaybackVolume,
-            rmsSilenceThreshold: settings.rmsSilenceThreshold,
-            confidenceThreshold: settings.confidenceThreshold,
-            scaleSoundType: scaleSoundType
+            rmsSilenceThreshold: currentSettings.rmsSilenceThreshold,
+            confidenceThreshold: currentSettings.confidenceThreshold,
+            pitchAlgorithm: currentSettings.pitchAlgorithm
         )
         try repository.save(settings)
 
@@ -67,20 +60,17 @@ final class AudioOutputSettingsViewModel: ObservableObject {
         let defaultSettings = AudioDetectionSettings.default
 
         // Get current settings and update only output-related properties
-        var currentSettings = repository.get()
-        currentSettings = AudioDetectionSettings(
-            scalePlaybackVolume: defaultSettings.scalePlaybackVolume,
+        let currentSettings = repository.get()
+        let settings = AudioDetectionSettings(
             recordingPlaybackVolume: defaultSettings.recordingPlaybackVolume,
             rmsSilenceThreshold: currentSettings.rmsSilenceThreshold,
             confidenceThreshold: currentSettings.confidenceThreshold,
-            scaleSoundType: defaultSettings.scaleSoundType
+            pitchAlgorithm: currentSettings.pitchAlgorithm
         )
-        try repository.save(currentSettings)
+        try repository.save(settings)
 
         // Update UI
-        scalePlaybackVolume = defaultSettings.scalePlaybackVolume
         recordingPlaybackVolume = defaultSettings.recordingPlaybackVolume
-        scaleSoundType = defaultSettings.scaleSoundType
-        originalSettings = currentSettings
+        originalSettings = settings
     }
 }

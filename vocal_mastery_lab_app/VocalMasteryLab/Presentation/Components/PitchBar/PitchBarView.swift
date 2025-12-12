@@ -248,7 +248,7 @@ struct PitchBarView_Previews: PreviewProvider {
         var timestamps: [Double] = []
         var frequencies: [Float] = []
         var confidences: [Float] = []
-        var targetNotes: [MIDINote?] = []
+        var amplitudes: [Float] = []
 
         let notes: [Float] = [261.63, 293.66, 329.63, 349.23, 392.0]  // C4, D4, E4, F4, G4
 
@@ -264,7 +264,7 @@ struct PitchBarView_Previews: PreviewProvider {
                 timestamps.append(time)
                 frequencies.append(freq)
                 confidences.append(0.85 + Float.random(in: 0...0.1))
-                targetNotes.append(try? MIDINote(UInt8(60 + segmentIndex * 2)))
+                amplitudes.append(0.5 + Float.random(in: 0...0.3))
             }
         }
 
@@ -272,7 +272,7 @@ struct PitchBarView_Previews: PreviewProvider {
             timeStamps: timestamps,
             frequencies: frequencies,
             confidences: confidences,
-            targetNotes: targetNotes
+            amplitudes: amplitudes
         )
     }
 }

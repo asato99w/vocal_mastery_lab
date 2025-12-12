@@ -132,8 +132,6 @@ public struct AnalysisView: View {
         let calculator = RecordingStatisticsCalculator(algorithm: algorithm)
         return calculator.calculate(
             pitchData: analysisResult.pitchData,
-            playbackTimeline: recording.playbackTimeline,
-            scaleSettings: recording.scaleSettings,
             spectrogramData: analysisResult.spectrogramData
         )
     }
@@ -181,8 +179,6 @@ public struct AnalysisView: View {
                 PitchAnalysisView(
                     currentTime: viewModel.currentTime,
                     pitchData: viewModel.analysisResult?.pitchData,
-                    scaleSettings: viewModel.analysisResult?.scaleSettings,
-                    playbackTimeline: recording.playbackTimeline,
                     onExpand: {
                         expandedGraph = .pitchAnalysis
                     },
@@ -224,8 +220,6 @@ public struct AnalysisView: View {
                 PitchAnalysisView(
                     currentTime: viewModel.currentTime,
                     pitchData: viewModel.analysisResult?.pitchData,
-                    scaleSettings: viewModel.analysisResult?.scaleSettings,
-                    playbackTimeline: recording.playbackTimeline,
                     onExpand: {
                         expandedGraph = .pitchAnalysis
                     },
@@ -270,8 +264,6 @@ public struct AnalysisView: View {
                     PitchAnalysisView(
                         currentTime: viewModel.currentTime,
                         pitchData: viewModel.analysisResult?.pitchData,
-                        scaleSettings: viewModel.analysisResult?.scaleSettings,
-                        playbackTimeline: recording.playbackTimeline,
                         isExpanded: true,
                         onCollapse: {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -332,7 +324,7 @@ private class PreviewAudioFileAnalyzer: AudioFileAnalyzerProtocol {
             timeStamps: [0.0, 0.05, 0.10],
             frequencies: [261.6, 262.3, 261.9],
             confidences: [0.85, 0.92, 0.88],
-            targetNotes: [nil, nil, nil]
+            amplitudes: [0.5, 0.6, 0.55]
         )
 
         let spectrogramData = SpectrogramData(
@@ -375,13 +367,7 @@ struct AnalysisView_Previews: PreviewProvider {
                     id: RecordingId(),
                     fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
                     createdAt: Date(),
-                    duration: Duration(seconds: 10.0),
-                    scaleSettings: ScaleSettings(
-                        startNote: try! MIDINote(60), // C3
-                        endNote: try! MIDINote(72),   // C4
-                        notePattern: .fiveToneScale,
-                        tempo: try! Tempo(secondsPerNote: 0.5)
-                    )
+                    duration: Duration(seconds: 10.0)
                 ),
                 audioPlayer: PreviewAudioPlayer(),
                 analyzeRecordingUseCase: AnalyzeRecordingUseCase(

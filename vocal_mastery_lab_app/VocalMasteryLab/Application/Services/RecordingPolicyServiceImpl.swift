@@ -16,8 +16,7 @@ final class RecordingPolicyServiceImpl: RecordingPolicyService {
     // MARK: - RecordingPolicyService
 
     func canStartRecording(
-        user: User,
-        settings: ScaleSettings?
+        user: User
     ) async throws -> RecordingPermission {
         // Grandfather users (v1.0 cohort) have unlimited recordings
         if user.subscriptionStatus.cohort == .v1_0 {
@@ -29,8 +28,6 @@ final class RecordingPolicyServiceImpl: RecordingPolicyService {
         if !limit.isCountWithinLimit(user.recordingStats.todayCount) {
             return .denied(.dailyLimitExceeded)
         }
-
-        // Scale recording is now available for all tiers, no permission check needed
 
         return .allowed
     }

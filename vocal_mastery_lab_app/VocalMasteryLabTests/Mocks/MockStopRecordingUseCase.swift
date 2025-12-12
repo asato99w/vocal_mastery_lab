@@ -7,7 +7,7 @@ final class MockStopRecordingUseCase: StopRecordingUseCaseProtocol {
     var executeResult: StopRecordingResult?
     var executeShouldFail = false
 
-    func setRecordingContext(url: URL, settings: ScaleSettings?) {
+    func setRecordingContext(url: URL) {
         // Mock doesn't need to track context
     }
 
@@ -31,6 +31,3 @@ final class MockStopRecordingUseCase: StopRecordingUseCaseProtocol {
         executeShouldFail = false
     }
 }
-
-// Note: This mock doesn't need scalePlayer because it's a mock of the entire use case
-// The actual StopRecordingUseCase handles scalePlayer internally

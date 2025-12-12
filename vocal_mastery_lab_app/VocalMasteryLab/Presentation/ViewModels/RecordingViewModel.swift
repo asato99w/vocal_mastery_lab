@@ -1,11 +1,8 @@
 import Foundation
 import SubscriptionDomain
 import VocalisDomain
-import SubscriptionDomain
 import Combine
-import SubscriptionDomain
 import OSLog
-import SubscriptionDomain
 
 /// Recording state for the main recording screen
 public enum RecordingState: Equatable {
@@ -38,7 +35,6 @@ public class RecordingViewModel: ObservableObject {
     @Published public var progress: Double = 0.0
     @Published public var countdownValue: Int = 0 // Forwarded from RecordingStateViewModel
     @Published public var lastRecordingURL: URL?
-    @Published public var lastRecordingSettings: ScaleSettings?
     @Published public var lastRecordingId: RecordingId?
     @Published public var isPlayingRecording: Bool = false
 
@@ -46,7 +42,6 @@ public class RecordingViewModel: ObservableObject {
     @Published public var dailyRecordingCount: Int = 0
     @Published public var recordingLimit: RecordingLimit = RecordingLimit(dailyCount: 5, maxDuration: 30)
 
-    @Published public var targetPitch: DetectedPitch?
     @Published public var detectedPitch: DetectedPitch?
     @Published public var pitchAccuracy: PitchAccuracy = .none
     @Published public var spectrum: [Float]?
@@ -56,16 +51,12 @@ public class RecordingViewModel: ObservableObject {
 
     public init(
         startRecordingUseCase: StartRecordingUseCaseProtocol,
-        startRecordingWithScaleUseCase: StartRecordingWithScaleUseCaseProtocol,
         stopRecordingUseCase: StopRecordingUseCaseProtocol,
         audioPlayer: AudioPlayerProtocol,
         pitchDetector: any PitchDetectorProtocol & ObservableObject,
-        scalePlaybackCoordinator: ScalePlaybackCoordinator,
         subscriptionViewModel: SubscriptionViewModel,
         usageTracker: RecordingUsageTracker = RecordingUsageTracker(),
         countdownDuration: Int = 3,
-        targetPitchPollingIntervalNanoseconds: UInt64 = 100_000_000,
-        playbackPitchPollingIntervalNanoseconds: UInt64 = 50_000_000,
         recordingLimitConfig: RecordingLimit.Configuration = .production
     ) {
         self.pitchDetector = pitchDetector
@@ -74,10 +65,8 @@ public class RecordingViewModel: ObservableObject {
         // Initialize child ViewModels
         self.recordingStateVM = RecordingStateViewModel(
             startRecordingUseCase: startRecordingUseCase,
-            startRecordingWithScaleUseCase: startRecordingWithScaleUseCase,
             stopRecordingUseCase: stopRecordingUseCase,
             audioPlayer: audioPlayer,
-            scalePlaybackCoordinator: scalePlaybackCoordinator,
             subscriptionViewModel: subscriptionViewModel,
             usageTracker: usageTracker,
             countdownDuration: countdownDuration,
@@ -86,10 +75,7 @@ public class RecordingViewModel: ObservableObject {
 
         self.pitchDetectionVM = PitchDetectionViewModel(
             pitchDetector: pitchDetector,
-            scalePlaybackCoordinator: scalePlaybackCoordinator,
-            audioPlayer: audioPlayer,
-            targetPitchPollingIntervalNanoseconds: targetPitchPollingIntervalNanoseconds,
-            playbackPitchPollingIntervalNanoseconds: playbackPitchPollingIntervalNanoseconds
+            audioPlayer: audioPlayer
         )
 
         setupBindings()
@@ -120,13 +106,8 @@ public class RecordingViewModel: ObservableObject {
         recordingStateVM.$lastRecordingURL
             .assign(to: &$lastRecordingURL)
 
-        recordingStateVM.$lastRecordingSettings
-            .assign(to: &$lastRecordingSettings)
-
         recordingStateVM.$lastRecordingId
             .assign(to: &$lastRecordingId)
-
-        // isPlayingRecording is managed directly in RecordingViewModel for immediate UI updates
 
         recordingStateVM.$currentTier
             .assign(to: &$currentTier)
@@ -138,9 +119,6 @@ public class RecordingViewModel: ObservableObject {
             .assign(to: &$recordingLimit)
 
         // Forward PitchDetectionVM properties
-        pitchDetectionVM.$targetPitch
-            .assign(to: &$targetPitch)
-
         pitchDetectionVM.$detectedPitch
             .assign(to: &$detectedPitch)
 
@@ -148,7 +126,6 @@ public class RecordingViewModel: ObservableObject {
             .assign(to: &$pitchAccuracy)
 
         // Subscribe to spectrum updates from pitch detector
-        // Note: Using RealtimePitchDetector for spectrum updates
         if let realtimePitchDetector = pitchDetector as? RealtimePitchDetector {
             realtimePitchDetector.$spectrum
                 .sink { [weak self] spectrum in
@@ -173,12 +150,9 @@ public class RecordingViewModel: ObservableObject {
 
     private func setupCallbacks() {
         // Set up auto-stop callback for duration limit
-        // When RecordingStateVM detects duration limit reached, it will call this
-        // to ensure proper cleanup of pitch detection and scale playback
         recordingStateVM.onAutoStopNeeded = { [weak self] in
             guard let self = self else { return }
-            Logger.viewModel.info("⏱️ Duration limit reached - calling RecordingViewModel.stopRecording() for cleanup")
-            Logger.viewModel.logToFile(level: "INFO", message: "⏱️ Duration limit reached - calling RecordingViewModel.stopRecording() for cleanup")
+            Logger.viewModel.info("Duration limit reached - calling RecordingViewModel.stopRecording()")
             await self.stopRecording()
         }
     }
@@ -186,81 +160,49 @@ public class RecordingViewModel: ObservableObject {
     // MARK: - Public Methods (Coordinator)
 
     /// Set preparing state immediately for instant visual feedback
-    /// Call this synchronously before async work begins
     public func setPreparingState() {
         guard self.recordingState == .idle else { return }
         self.recordingState = .preparing
-        Logger.viewModel.info("✅ RecordingViewModel: State changed to .preparing - immediate UI feedback")
+        Logger.viewModel.info("RecordingViewModel: State changed to .preparing")
     }
 
     /// Start the recording process with countdown
-    public func startRecording(settings: ScaleSettings? = nil) async {
-        Logger.viewModel.info("RecordingViewModel.startRecording() called, settings = \(settings != nil ? "present" : "nil")")
-        Logger.viewModel.logToFile(level: "INFO", message: "RecordingViewModel.startRecording() called, settings = \(settings != nil ? "present" : "nil")")
+    public func startRecording() async {
+        Logger.viewModel.info("RecordingViewModel.startRecording() called")
 
-        // Accept .idle (normal case) or .preparing (after setPreparingState() was called)
         guard self.recordingState == .idle || self.recordingState == .preparing else {
-            Logger.viewModel.warning("Start recording ignored in RecordingViewModel: already in state \(String(describing: self.recordingState))")
+            Logger.viewModel.warning("Start recording ignored: already in state \(String(describing: self.recordingState))")
             return
         }
 
-        // Set preparing state if not already set (for backward compatibility when setPreparingState isn't called)
         if self.recordingState == .idle {
             self.recordingState = .preparing
-            Logger.viewModel.info("✅ RecordingViewModel: State changed to .preparing - immediate UI feedback")
         }
 
-        // Start recording through state VM (this starts countdown → executeRecording → scale playback)
-        await recordingStateVM.startRecording(settings: settings)
+        // Start recording through state VM
+        await recordingStateVM.startRecording()
 
-        // Wait for recording to actually start (AudioSession configured + recording started)
-        // CRITICAL: Must wait for recordingState == .recording, not just isCountdownComplete
-        // because AudioSession configuration happens AFTER isCountdownComplete is set
-        Logger.viewModel.info("Waiting for recording to start (AudioSession configuration + recording start)...")
-        Logger.viewModel.logToFile(level: "INFO", message: "Waiting for recording to start...")
+        // Wait for recording to actually start
+        Logger.viewModel.info("Waiting for recording to start...")
 
         while recordingStateVM.recordingState != .recording {
-            // If recording failed and returned to idle, break the loop
             if recordingStateVM.recordingState == .idle {
                 Logger.viewModel.warning("Recording failed to start - skipping pitch detection")
-                Logger.viewModel.logToFile(level: "WARNING", message: "Recording failed to start - skipping pitch detection")
                 return
             }
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
         }
-        Logger.viewModel.info("✅ Recording started (AudioSession configured) - now starting pitch detection")
-        Logger.viewModel.logToFile(level: "INFO", message: "✅ Recording started - starting pitch detection")
+        Logger.viewModel.info("Recording started - starting pitch detection")
 
         do {
-            // Always start pitch detector AFTER countdown (for realtime pitch visualization)
             try await pitchDetector.startRealtimeDetection()
-            Logger.viewModel.info("✅ Realtime pitch detection started (after countdown)")
-            Logger.viewModel.logToFile(level: "INFO", message: "✅ Realtime pitch detection started (after countdown)")
-
-            // If settings provided, start target pitch monitoring
-            if let settings = settings {
-                Logger.viewModel.info("✅ Settings present - starting target pitch monitoring")
-                Logger.viewModel.logToFile(level: "INFO", message: "✅ Settings present - starting target pitch monitoring")
-
-                // NOTE: Audible scale playback is already started by UseCase
-                // No need to start it again via Coordinator
-
-                // Start target pitch monitoring (which polls the UseCase's scale player current element)
-                try await pitchDetectionVM.startTargetPitchMonitoring(settings: settings)
-                Logger.viewModel.info("✅ Target pitch monitoring started")
-                Logger.viewModel.logToFile(level: "INFO", message: "✅ Target pitch monitoring started")
-            } else {
-                Logger.viewModel.info("No settings provided - skipping target pitch monitoring (realtime detection only)")
-                Logger.viewModel.logToFile(level: "INFO", message: "No settings provided - skipping target pitch monitoring (realtime detection only)")
-            }
+            Logger.viewModel.info("Realtime pitch detection started")
         } catch {
-            Logger.viewModel.error("❌ Error starting pitch detection: \(error.localizedDescription)")
-            Logger.viewModel.logToFile(level: "ERROR", message: "❌ Error starting pitch detection: \(error.localizedDescription)")
+            Logger.viewModel.error("Error starting pitch detection: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
 
         Logger.viewModel.info("RecordingViewModel.startRecording() completed")
-        Logger.viewModel.logToFile(level: "INFO", message: "RecordingViewModel.startRecording() completed")
     }
 
     /// Cancel the countdown before recording starts
@@ -270,14 +212,10 @@ public class RecordingViewModel: ObservableObject {
 
     /// Stop the current recording
     public func stopRecording() async {
-        // Stop pitch detection first
-        await pitchDetectionVM.stopTargetPitchMonitoring()
+        // Stop pitch detection
         pitchDetector.stopRealtimeDetection()
 
-        // Stop scale playback
-        await recordingStateVM.scalePlaybackCoordinator.stopPlayback()
-
-        // Then stop recording
+        // Stop recording
         await recordingStateVM.stopRecording()
 
         // Reset pitch detection state
@@ -286,149 +224,59 @@ public class RecordingViewModel: ObservableObject {
 
     /// Play the last recording
     public func playLastRecording() async {
-        Logger.viewModel.debug("🔵 playLastRecording() called")
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 playLastRecording() called")
-        Logger.viewModel.debug("🔵 lastRecordingURL: \(String(describing: self.lastRecordingURL))")
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 lastRecordingURL: \(String(describing: self.lastRecordingURL))")
-        Logger.viewModel.debug("🔵 lastRecordingSettings: \(String(describing: self.lastRecordingSettings))")
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 lastRecordingSettings: \(String(describing: self.lastRecordingSettings))")
+        Logger.viewModel.debug("playLastRecording() called")
 
-        guard let url = lastRecordingURL, let settings = lastRecordingSettings else {
-            Logger.viewModel.debug("🔵 Missing URL or settings - starting simple playback without pitch detection")
-            Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 Missing URL or settings - starting simple playback without pitch detection")
+        guard let url = lastRecordingURL else {
+            Logger.viewModel.debug("No recording URL - cannot play")
             await recordingStateVM.playLastRecording()
             return
         }
 
-        Logger.viewModel.debug("🔵 Both URL and settings exist - starting coordinated playback with pitch detection")
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 Both URL and settings exist - starting coordinated playback with pitch detection")
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 About to enter do block")
+        Logger.viewModel.debug("Starting playback")
 
         do {
-            Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 Entered do block")
-            // Note: isPlayingRecording is already set by RecordingView.togglePlayback() before calling this method
-            // This ensures immediate UI update without async delay
-            Logger.viewModel.info("🔵 playLastRecording() started (isPlayingRecording should already be true)")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 playLastRecording() started")
+            isPlayingRecording = true
+            Logger.viewModel.info("Starting audio playback")
 
-            // Step 1: Start muted scale playback FIRST (non-blocking)
-            Logger.viewModel.info("🔵 Step 1: Starting muted scale playback in background")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 Step 1: Starting muted scale playback in background")
-            Task {
-                Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 Task block entered")
-                do {
-                    Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 About to call startMutedPlayback")
-                    try await recordingStateVM.scalePlaybackCoordinator.startMutedPlayback(settings: settings)
-                    Logger.viewModel.info("🔵 ✅ Scale playback completed")
-                    Logger.viewModel.logToFile(level: "INFO", message: "🔵 ✅ Scale playback completed")
-                } catch {
-                    Logger.viewModel.error("🔵 ❌ Scale playback error: \(error.localizedDescription)")
-                    Logger.viewModel.logToFile(level: "ERROR", message: "🔵 ❌ Scale playback error: \(error.localizedDescription)")
-                }
-            }
-            // Give scale playback a moment to start
-            Logger.viewModel.logToFile(level: "DEBUG", message: "🔵 About to sleep 0.1s")
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-            Logger.viewModel.info("🔵 ✅ Scale playback started in background")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 ✅ Scale playback started in background")
+            try await recordingStateVM.audioPlayer.play(url: url)
+            Logger.viewModel.info("Audio playback completed")
 
-            // Step 2: Start pitch monitoring AFTER scale is playing
-            Logger.viewModel.info("🔵 Step 2: Starting target pitch monitoring AFTER scale is playing")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 Step 2: Starting target pitch monitoring")
-            try await pitchDetectionVM.startTargetPitchMonitoring(settings: settings)
-            Logger.viewModel.info("🔵 ✅ Target pitch monitoring started")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 ✅ Target pitch monitoring started")
-
-            // Step 3: Start playback pitch detection for user's pitch analysis
-            Logger.viewModel.info("🔵 Step 3: Starting playback pitch detection")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 Step 3: Starting playback pitch detection")
-            try await pitchDetectionVM.startPlaybackPitchDetection(url: url)
-            Logger.viewModel.info("🔵 ✅ Playback pitch detection started")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 ✅ Playback pitch detection started")
-
-            // Step 4: Play the recording audio (scale is already playing)
-            // withPitchDetection: true is REQUIRED because:
-            // - Pitch detection (RealtimePitchDetector) needs microphone access via AVAudioEngine
-            // - Microphone access requires .playAndRecord audio session category
-            // - .playback category does NOT provide microphone access
-            // AudioSession reference counting ensures safe cleanup when playback stops
-            Logger.viewModel.info("🔵 Step 4: Starting audio playback (scale already playing)")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 Step 4: Starting audio playback")
-            try await recordingStateVM.audioPlayer.play(url: url, withPitchDetection: true)
-            Logger.viewModel.info("🔵 ✅ Audio playback completed")
-            Logger.viewModel.logToFile(level: "INFO", message: "🔵 ✅ Audio playback completed")
-
-            // Playback completed naturally - cleanup
-            Logger.viewModel.debug("🔵 Playback completed naturally, cleaning up")
-            await recordingStateVM.scalePlaybackCoordinator.stopPlayback()
-            await pitchDetectionVM.stopTargetPitchMonitoring()
-            pitchDetectionVM.stopPlaybackPitchDetection()
-
-            // Clear playing state directly in RecordingViewModel for immediate UI update
             isPlayingRecording = false
             recordingStateVM.isPlayingRecording = false
-            Logger.viewModel.info("🔵 isPlayingRecording = false (normal completion)")
+            Logger.viewModel.info("isPlayingRecording = false (normal completion)")
 
         } catch {
-            Logger.viewModel.error("🔵 ❌ Error during playback: \(error.localizedDescription)")
-            Logger.viewModel.logToFile(level: "ERROR", message: "🔵 ❌ Error during playback: \(error.localizedDescription)")
+            Logger.viewModel.error("Error during playback: \(error.localizedDescription)")
             Logger.viewModel.logError(error)
             errorMessage = error.localizedDescription
 
-            // Error cleanup
-            Logger.viewModel.debug("🔵 Performing error cleanup")
-            await recordingStateVM.scalePlaybackCoordinator.stopPlayback()
-            await pitchDetectionVM.stopTargetPitchMonitoring()
-            pitchDetectionVM.stopPlaybackPitchDetection()
-
-            // Clear playing state directly in RecordingViewModel for immediate UI update
             isPlayingRecording = false
             recordingStateVM.isPlayingRecording = false
-            Logger.viewModel.info("🔵 isPlayingRecording = false (error cleanup)")
         }
     }
 
     /// Stop playing the recording
     public func stopPlayback() async {
-        Logger.viewModel.debug("🔵 stopPlayback() called - cleaning up all playback components")
-        Logger.viewModel.logToFile(level: "INFO", message: "🔴 stopPlayback() called - cleaning up all playback components")
+        Logger.viewModel.debug("stopPlayback() called")
 
-        // Stop audio playback first
         await recordingStateVM.audioPlayer.stop()
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔴 Audio player stopped")
 
-        // Stop scale playback
-        await recordingStateVM.scalePlaybackCoordinator.stopPlayback()
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔴 Scale playback stopped")
-
-        // Stop pitch detection
-        await pitchDetectionVM.stopTargetPitchMonitoring()
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔴 stopTargetPitchMonitoring() completed")
-
-        pitchDetectionVM.stopPlaybackPitchDetection()
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔴 stopPlaybackPitchDetection() completed")
-
-        // Reset pitch detection state (clears targetPitch display)
+        // Reset pitch detection state
         pitchDetectionVM.reset()
-        Logger.viewModel.logToFile(level: "DEBUG", message: "🔴 pitch detection reset (targetPitch cleared)")
 
-        // Clear playing state directly in RecordingViewModel for immediate UI update
         isPlayingRecording = false
         recordingStateVM.isPlayingRecording = false
-        Logger.viewModel.info("🔵 isPlayingRecording = false (manual stop)")
-        Logger.viewModel.logToFile(level: "INFO", message: "🔴 isPlayingRecording = false (manual stop)")
+        Logger.viewModel.info("isPlayingRecording = false (manual stop)")
 
-        Logger.viewModel.debug("🔵 stopPlayback() completed")
-        Logger.viewModel.logToFile(level: "INFO", message: "🔴 stopPlayback() completed")
+        Logger.viewModel.debug("stopPlayback() completed")
     }
 
     /// Reload audio detection settings from repository and update pitch detector
-    /// Called after user modifies settings in AudioSettingsView
     public func reloadAudioSettings(from repository: AudioSettingsRepositoryProtocol) {
         let settings = repository.get()
         if let pitchDetector = pitchDetector as? RealtimePitchDetector {
             pitchDetector.updateSettings(settings)
-            Logger.viewModel.info("🔧 Audio settings reloaded: RMS=\(settings.rmsSilenceThreshold), Confidence=\(settings.confidenceThreshold)")
+            Logger.viewModel.info("Audio settings reloaded: RMS=\(settings.rmsSilenceThreshold), Confidence=\(settings.confidenceThreshold)")
         }
     }
 }

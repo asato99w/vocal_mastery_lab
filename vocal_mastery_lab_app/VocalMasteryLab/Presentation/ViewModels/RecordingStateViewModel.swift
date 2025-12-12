@@ -23,7 +23,6 @@ public class RecordingStateViewModel: ObservableObject {
     @Published public private(set) var progress: Double = 0.0
     @Published public private(set) var countdownValue: Int = 3
     @Published public private(set) var lastRecordingURL: URL?
-    @Published public private(set) var lastRecordingSettings: ScaleSettings?
     @Published public private(set) var lastRecordingId: RecordingId?
     @Published internal var isPlayingRecording: Bool = false
     @Published public private(set) var isCountdownComplete: Bool = false
@@ -43,10 +42,8 @@ public class RecordingStateViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let startRecordingUseCase: StartRecordingUseCaseProtocol
-    private let startRecordingWithScaleUseCase: StartRecordingWithScaleUseCaseProtocol
     private let stopRecordingUseCase: StopRecordingUseCaseProtocol
     internal let audioPlayer: AudioPlayerProtocol
-    internal let scalePlaybackCoordinator: ScalePlaybackCoordinator
     private let subscriptionViewModel: SubscriptionViewModel
     private let usageTracker: RecordingUsageTracker
 
@@ -70,20 +67,16 @@ public class RecordingStateViewModel: ObservableObject {
 
     public init(
         startRecordingUseCase: StartRecordingUseCaseProtocol,
-        startRecordingWithScaleUseCase: StartRecordingWithScaleUseCaseProtocol,
         stopRecordingUseCase: StopRecordingUseCaseProtocol,
         audioPlayer: AudioPlayerProtocol,
-        scalePlaybackCoordinator: ScalePlaybackCoordinator,
         subscriptionViewModel: SubscriptionViewModel,
         usageTracker: RecordingUsageTracker = RecordingUsageTracker(),
         countdownDuration: Int = 3,
         recordingLimitConfig: RecordingLimit.Configuration = .production
     ) {
         self.startRecordingUseCase = startRecordingUseCase
-        self.startRecordingWithScaleUseCase = startRecordingWithScaleUseCase
         self.stopRecordingUseCase = stopRecordingUseCase
         self.audioPlayer = audioPlayer
-        self.scalePlaybackCoordinator = scalePlaybackCoordinator
         self.subscriptionViewModel = subscriptionViewModel
         self.usageTracker = usageTracker
         self.countdownDuration = countdownDuration
@@ -141,7 +134,7 @@ public class RecordingStateViewModel: ObservableObject {
     }
 
     /// Start the recording process with countdown
-    public func startRecording(settings: ScaleSettings? = nil) async {
+    public func startRecording() async {
         Logger.viewModel.error("🔴 RECORDING_LIMIT_MARK: startRecording START, state=\(String(describing: self.recordingState))")
 
         // Don't start if already recording or in countdown
@@ -177,9 +170,8 @@ public class RecordingStateViewModel: ObservableObject {
             return
         }
 
-        let settingsInfo = settings != nil ? "5-tone scale" : "no scale"
-        Logger.viewModel.info("Starting recording with settings: \(settingsInfo)")
-        Logger.viewModel.error("🔴 RECORDING_LIMIT_MARK: startRecording PASSED checks, settings=\(settingsInfo)")
+        Logger.viewModel.info("Starting recording")
+        Logger.viewModel.error("🔴 RECORDING_LIMIT_MARK: startRecording PASSED checks")
 
         // Clear any previous error
         errorMessage = nil
@@ -187,7 +179,7 @@ public class RecordingStateViewModel: ObservableObject {
         // If countdown is 0, skip countdown and start recording immediately
         if countdownDuration == 0 {
             isCountdownComplete = true
-            await executeRecording(settings: settings)
+            await executeRecording()
             return
         }
 
@@ -206,8 +198,6 @@ public class RecordingStateViewModel: ObservableObject {
                 await MainActor.run {
                     self.countdownValue = value
                 }
-                // Play countdown click sound (works in silent mode via AudioSession)
-                await CountdownSoundPlayer.shared.playClick()
 
                 try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
             }
@@ -216,7 +206,7 @@ public class RecordingStateViewModel: ObservableObject {
 
             // Countdown complete, set flag before executing recording
             await MainActor.run { self.isCountdownComplete = true }
-            await self.executeRecording(settings: settings)
+            await self.executeRecording()
         }
     }
 
@@ -243,9 +233,8 @@ public class RecordingStateViewModel: ObservableObject {
         recordingStartTime = nil
 
         do {
-            // Save the recording URL and settings before clearing currentSession
+            // Save the recording URL before clearing currentSession
             let recordingURL = currentSession?.recordingURL
-            let recordingSettings = currentSession?.settings
 
             // Stop recording via use case
             let result = try await stopRecordingUseCase.execute()
@@ -264,10 +253,8 @@ public class RecordingStateViewModel: ObservableObject {
             progress = 0.0
             isCountdownComplete = false
 
-            // Save the recording URL, settings, and ID for playback
-            // Note: Full Recording data (including playbackTimeline) is fetched from Repository when needed
+            // Save the recording URL and ID for playback
             lastRecordingURL = recordingURL
-            lastRecordingSettings = recordingSettings
             lastRecordingId = result.recordingId
 
         } catch {
@@ -305,16 +292,8 @@ public class RecordingStateViewModel: ObservableObject {
         do {
             isPlayingRecording = true
 
-            // If we have scale settings, start muted scale playback via coordinator
-            if let settings = lastRecordingSettings {
-                try await scalePlaybackCoordinator.startMutedPlayback(settings: settings)
-            }
-
             // Play the actual recording (blocks until playback completes)
             try await audioPlayer.play(url: url)
-
-            // Playback completed naturally - stop scale playback
-            await scalePlaybackCoordinator.stopPlayback()
 
             isPlayingRecording = false
             Logger.viewModel.info("Playback completed")
@@ -329,7 +308,6 @@ public class RecordingStateViewModel: ObservableObject {
     /// Stop playing the recording
     public func stopPlayback() async {
         await audioPlayer.stop()
-        await scalePlaybackCoordinator.stopPlayback()
         isPlayingRecording = false
         Logger.viewModel.info("Playback stopped")
     }
@@ -355,23 +333,17 @@ public class RecordingStateViewModel: ObservableObject {
     }
 
     /// Execute the actual recording after countdown
-    private func executeRecording(settings: ScaleSettings?) async {
+    private func executeRecording() async {
         do {
             // Create user object from current state
             let user = createCurrentUser()
 
-            // Start recording based on settings
-            let session: RecordingSession
-            if let settings = settings {
-                session = try await startRecordingWithScaleUseCase.execute(user: user, settings: settings)
-                Logger.viewModel.info("Recording started with scale")
-            } else {
-                session = try await startRecordingUseCase.execute(user: user)
-                Logger.viewModel.info("Recording started without scale")
-            }
+            // Start recording
+            let session = try await startRecordingUseCase.execute(user: user)
+            Logger.viewModel.info("Recording started")
 
             // Set recording context for StopRecordingUseCase
-            stopRecordingUseCase.setRecordingContext(url: session.recordingURL, settings: session.settings)
+            stopRecordingUseCase.setRecordingContext(url: session.recordingURL)
 
             // Update state
             recordingState = .recording

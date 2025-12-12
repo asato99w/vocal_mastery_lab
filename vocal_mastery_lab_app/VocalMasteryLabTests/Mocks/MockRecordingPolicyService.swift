@@ -6,12 +6,10 @@ class MockRecordingPolicyService: RecordingPolicyService {
     var canStartRecordingResult: RecordingPermission = .allowed
     var canStartRecordingCalled = false
     var lastUser: User?
-    var lastSettings: ScaleSettings?
 
-    func canStartRecording(user: User, settings: ScaleSettings?) async throws -> RecordingPermission {
+    func canStartRecording(user: User) async throws -> RecordingPermission {
         canStartRecordingCalled = true
         lastUser = user
-        lastSettings = settings
         return canStartRecordingResult
     }
 
@@ -34,7 +32,6 @@ class MockRecordingPolicyService: RecordingPolicyService {
         canStartRecordingResult = .allowed
         canStartRecordingCalled = false
         lastUser = nil
-        lastSettings = nil
         validateDurationShouldThrow = nil
         validateDurationCalled = false
         lastDuration = nil

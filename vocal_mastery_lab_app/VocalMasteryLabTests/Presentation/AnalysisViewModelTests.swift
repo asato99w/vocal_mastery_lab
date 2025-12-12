@@ -33,18 +33,11 @@ final class AnalysisViewModelTests: XCTestCase {
     // MARK: - Test Helpers
 
     private func createTestRecording() -> Recording {
-        let scaleSettings = ScaleSettings(
-            startNote: try! MIDINote(60),
-            endNote: try! MIDINote(72),
-            notePattern: .fiveToneScale,
-            tempo: try! Tempo(secondsPerNote: 0.5)
-        )
         return Recording(
             id: RecordingId(),
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             createdAt: Date(),
-            duration: Duration(seconds: 10.0),
-            scaleSettings: scaleSettings
+            duration: Duration(seconds: 10.0)
         )
     }
 
@@ -53,7 +46,7 @@ final class AnalysisViewModelTests: XCTestCase {
             timeStamps: [0.0, 0.05],
             frequencies: [261.6, 262.3],
             confidences: [0.85, 0.92],
-            targetNotes: [nil, nil]
+            amplitudes: [0.5, 0.6]
         )
 
         let spectrogramData = SpectrogramData(
@@ -64,8 +57,7 @@ final class AnalysisViewModelTests: XCTestCase {
 
         return AnalysisResult(
             pitchData: pitchData,
-            spectrogramData: spectrogramData,
-            scaleSettings: nil
+            spectrogramData: spectrogramData
         )
     }
 

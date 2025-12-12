@@ -18,18 +18,6 @@ public class DependencyContainer {
         OSLogAdapter.useCase
     }()
 
-    public lazy var scalePlayer: ScalePlayerProtocol = {
-        // HybridScalePlayer automatically switches between:
-        // - AVAudioPlayerNode (synthesized sounds like sineWave) for predictable timing
-        // - AVAudioUnitSampler (SF2 sounds like Piano, Marimba) for rich instrument sounds
-        // based on ScaleSoundType.midiProgram (nil = PlayerNode, non-nil = Sampler)
-        HybridScalePlayer(settingsRepository: audioSettingsRepository)
-    }()
-
-    public lazy var scalePlaybackCoordinator: ScalePlaybackCoordinator = {
-        ScalePlaybackCoordinator(scalePlayer: scalePlayer)
-    }()
-
     private lazy var audioRecorder: AudioRecorderProtocol = {
         AVAudioRecorderWrapper()
     }()
@@ -91,10 +79,6 @@ public class DependencyContainer {
         UserDefaultsAudioSettingsRepository()
     }()
 
-    private lazy var scalePresetRepository: ScalePresetRepositoryProtocol = {
-        UserDefaultsScalePresetRepository()
-    }()
-
     // MARK: - Application Layer
 
     // Domain Services
@@ -109,19 +93,9 @@ public class DependencyContainer {
         )
     }()
 
-    private lazy var startRecordingWithScaleUseCase: StartRecordingWithScaleUseCaseProtocol = {
-        StartRecordingWithScaleUseCase(
-            scalePlayer: scalePlayer,
-            audioRecorder: audioRecorder,
-            recordingPolicyService: recordingPolicyService,
-            logger: logger
-        )
-    }()
-
     private lazy var stopRecordingUseCase: StopRecordingUseCaseProtocol = {
         StopRecordingUseCase(
             audioRecorder: audioRecorder,
-            scalePlayer: scalePlayer,
             recordingRepository: recordingRepository
         )
     }()
@@ -154,19 +128,6 @@ public class DependencyContainer {
         GetAvailableProductsUseCase(repository: subscriptionRepository)
     }()
 
-    // Scale Preset Use Cases
-    private lazy var saveScalePresetUseCase: SaveScalePresetUseCase = {
-        SaveScalePresetUseCase(repository: scalePresetRepository)
-    }()
-
-    private lazy var loadScalePresetsUseCase: LoadScalePresetsUseCase = {
-        LoadScalePresetsUseCase(repository: scalePresetRepository)
-    }()
-
-    private lazy var deleteScalePresetUseCase: DeleteScalePresetUseCase = {
-        DeleteScalePresetUseCase(repository: scalePresetRepository)
-    }()
-
     // MARK: - Presentation Layer
 
     public lazy var recordingViewModel: RecordingViewModel = {
@@ -179,11 +140,9 @@ public class DependencyContainer {
 
         return RecordingViewModel(
             startRecordingUseCase: startRecordingUseCase,
-            startRecordingWithScaleUseCase: startRecordingWithScaleUseCase,
             stopRecordingUseCase: stopRecordingUseCase,
             audioPlayer: audioPlayer,
             pitchDetector: pitchDetector,
-            scalePlaybackCoordinator: scalePlaybackCoordinator,
             subscriptionViewModel: subscriptionViewModel,
             countdownDuration: countdownDuration
         )
@@ -218,14 +177,6 @@ public class DependencyContainer {
 
     func makeAlgorithmSettingsViewModel() -> AlgorithmSettingsViewModel {
         AlgorithmSettingsViewModel(repository: audioSettingsRepository)
-    }
-
-    func makeScalePresetViewModel() -> ScalePresetViewModel {
-        ScalePresetViewModel(
-            saveUseCase: saveScalePresetUseCase,
-            loadUseCase: loadScalePresetsUseCase,
-            deleteUseCase: deleteScalePresetUseCase
-        )
     }
 
     // MARK: - Setup

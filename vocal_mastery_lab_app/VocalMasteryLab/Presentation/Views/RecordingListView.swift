@@ -163,8 +163,8 @@ public struct RecordingListView: View {
                 .swipeActions(edge: .leading) {
                     Button {
                         editingRecording = recording
-                        // Show current display name in text field
-                        editingTitle = recording.title ?? localizedScaleDisplayName(for: recording) ?? ""
+                        // Show current title in text field
+                        editingTitle = recording.title ?? ""
                         showingRenameAlert = true
                     } label: {
                         Label("recording.rename".localized, systemImage: "pencil")
@@ -174,15 +174,6 @@ public struct RecordingListView: View {
                 }
             }
         }
-    }
-
-    /// Get localized scale display name for a recording
-    private func localizedScaleDisplayName(for recording: Recording) -> String? {
-        guard let scaleDisplayNameKey = recording.scaleDisplayNameKey,
-              let startNoteName = recording.scaleStartNoteName else {
-            return nil
-        }
-        return "\(startNoteName) \(scaleDisplayNameKey.localized)"
     }
 }
 
@@ -218,8 +209,8 @@ private struct RecordingRow: View {
 
             // Main content - tappable area for playback
             VStack(alignment: .leading, spacing: 8) {
-                // Recording name (title > scaleDisplayName > default)
-                Text(recording.title ?? localizedScaleDisplayName(for: recording) ?? "recording.title".localized)
+                // Recording name (title > default)
+                Text(recording.title ?? "recording.title".localized)
                     .font(.headline)
                     .foregroundColor(ColorPalette.text)
 
@@ -280,14 +271,5 @@ private struct RecordingRow: View {
         let minutes = Int(seconds) / 60
         let remainingSeconds = Int(seconds) % 60
         return String(format: "%d:%02d", minutes, remainingSeconds)
-    }
-
-    /// Get localized scale display name for a recording
-    private func localizedScaleDisplayName(for recording: Recording) -> String? {
-        guard let scaleDisplayNameKey = recording.scaleDisplayNameKey,
-              let startNoteName = recording.scaleStartNoteName else {
-            return nil
-        }
-        return "\(startNoteName) \(scaleDisplayNameKey.localized)"
     }
 }

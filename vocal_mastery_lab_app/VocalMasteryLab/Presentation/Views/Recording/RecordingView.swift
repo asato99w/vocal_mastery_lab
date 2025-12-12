@@ -2,15 +2,12 @@ import SwiftUI
 import SubscriptionDomain
 import VocalisDomain
 
-/// Main recording screen view with settings panel and real-time visualization
+/// Main recording screen view with real-time visualization
 public struct RecordingView: View {
     @StateObject private var viewModel: RecordingViewModel
-    @StateObject private var settingsViewModel = RecordingSettingsViewModel()
-    @StateObject private var presetViewModel = DependencyContainer.shared.makeScalePresetViewModel()
     @StateObject private var localization = LocalizationManager.shared
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.uiTestAnimationsDisabled) var uiTestAnimationsDisabled
-    @State private var isSettingsPanelVisible: Bool = true
     @State private var showingAlert: Bool = false
     @State private var recordingForAnalysis: Recording?
 
@@ -66,18 +63,6 @@ public struct RecordingView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
-        .onChange(of: viewModel.recordingState) { newState in
-            // Auto-hide settings panel when recording starts
-            if newState == .recording {
-                if uiTestAnimationsDisabled {
-                    isSettingsPanelVisible = false
-                } else {
-                    withAnimation {
-                        isSettingsPanelVisible = false
-                    }
-                }
-            }
-        }
         .onChange(of: viewModel.errorMessage) { errorMessage in
             // Show alert when error message is set
             showingAlert = errorMessage != nil
@@ -102,50 +87,33 @@ public struct RecordingView: View {
     // MARK: - Landscape Layout
 
     private var landscapeLayout: some View {
-        HStack(spacing: 0) {
-            // Left side: Settings panel (collapsible)
-            if isSettingsPanelVisible {
-                RecordingSettingsPanel(viewModel: settingsViewModel, presetViewModel: presetViewModel)
-                    .frame(width: 240)
-                    .transition(.move(edge: .leading))
+        VStack(spacing: 8) {
+            RealtimeDisplayArea(
+                recordingState: viewModel.recordingState,
+                isPlayingRecording: viewModel.isPlayingRecording,
+                detectedPitch: viewModel.detectedPitch,
+                pitchAccuracy: viewModel.pitchAccuracy,
+                spectrum: viewModel.spectrum,
+                audioLevel: viewModel.audioLevel
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                Divider()
-            }
-
-            // Right side: Real-time display and controls
-            VStack(spacing: 8) {
-                // Toggle button for settings panel
-                settingsToggleButton
-
-                RealtimeDisplayArea(
-                    recordingState: viewModel.recordingState,
-                    isPlayingRecording: viewModel.isPlayingRecording,
-                    targetPitch: viewModel.targetPitch,
-                    detectedPitch: viewModel.detectedPitch,
-                    pitchAccuracy: viewModel.pitchAccuracy,
-                    spectrum: viewModel.spectrum,
-                    audioLevel: viewModel.audioLevel,
-                    isSettingsPanelVisible: isSettingsPanelVisible
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                RecordingControls(
-                    recordingState: viewModel.recordingState,
-                    hasLastRecording: viewModel.lastRecordingURL != nil,
-                    isPlayingRecording: viewModel.isPlayingRecording,
-                    canStartRecording: settingsViewModel.canStartRecording,
-                    onStart: startRecording,
-                    onStop: stopRecording,
-                    onCancel: cancelCountdown,
-                    onPlayLast: togglePlayback,
-                    onAnalyze: navigateToAnalysisScreen,
-                    isCompactLayout: true  // Horizontal button layout for landscape
-                )
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
-            }
-            .frame(maxWidth: .infinity)
+            RecordingControls(
+                recordingState: viewModel.recordingState,
+                hasLastRecording: viewModel.lastRecordingURL != nil,
+                isPlayingRecording: viewModel.isPlayingRecording,
+                canStartRecording: true,
+                onStart: startRecording,
+                onStop: stopRecording,
+                onCancel: cancelCountdown,
+                onPlayLast: togglePlayback,
+                onAnalyze: navigateToAnalysisScreen,
+                isCompactLayout: true  // Horizontal button layout for landscape
+            )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Portrait Layout
@@ -153,53 +121,21 @@ public struct RecordingView: View {
     private var portraitLayout: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Toggle button for settings panel
-                // Hide settings toggle during recording
-                if viewModel.recordingState != .recording {
-                    HStack {
-                        Button(action: {
-                            if uiTestAnimationsDisabled {
-                                isSettingsPanelVisible.toggle()
-                            } else {
-                                withAnimation {
-                                    isSettingsPanelVisible.toggle()
-                                }
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: isSettingsPanelVisible ? "chevron.up" : "gearshape.fill")
-                                Text(isSettingsPanelVisible ? "recording.hide_settings".localized : "recording.show_settings".localized)
-                            }
-                        }
-                        .buttonStyle(CompactButtonStyle())
-
-                        Spacer()
-                    }
-                }
-
-                // Settings panel (collapsible)
-                if isSettingsPanelVisible {
-                    RecordingSettingsCompact(viewModel: settingsViewModel, presetViewModel: presetViewModel)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
                 RealtimeDisplayArea(
                     recordingState: viewModel.recordingState,
                     isPlayingRecording: viewModel.isPlayingRecording,
-                    targetPitch: viewModel.targetPitch,
                     detectedPitch: viewModel.detectedPitch,
                     pitchAccuracy: viewModel.pitchAccuracy,
                     spectrum: viewModel.spectrum,
-                    audioLevel: viewModel.audioLevel,
-                    isSettingsPanelVisible: isSettingsPanelVisible
+                    audioLevel: viewModel.audioLevel
                 )
-                .frame(height: isSettingsPanelVisible ? 0 : 350)
+                .frame(height: 350)
 
                 RecordingControls(
                     recordingState: viewModel.recordingState,
                     hasLastRecording: viewModel.lastRecordingURL != nil,
                     isPlayingRecording: viewModel.isPlayingRecording,
-                    canStartRecording: settingsViewModel.canStartRecording,
+                    canStartRecording: true,
                     onStart: startRecording,
                     onStop: stopRecording,
                     onCancel: cancelCountdown,
@@ -218,36 +154,6 @@ public struct RecordingView: View {
         }
     }
 
-    // MARK: - Settings Toggle Button
-
-    @ViewBuilder
-    private var settingsToggleButton: some View {
-        // Hide settings toggle during recording
-        if viewModel.recordingState != .recording {
-            HStack {
-                Button(action: {
-                    if uiTestAnimationsDisabled {
-                        isSettingsPanelVisible.toggle()
-                    } else {
-                        withAnimation {
-                            isSettingsPanelVisible.toggle()
-                        }
-                    }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: isSettingsPanelVisible ? "sidebar.left" : "gearshape.fill")
-                        Text(isSettingsPanelVisible ? "recording.hide_settings".localized : "recording.show_settings".localized)
-                    }
-                }
-                .buttonStyle(CompactButtonStyle())
-
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-        }
-    }
-
     // MARK: - Action Handlers
 
     private func startRecording() {
@@ -255,8 +161,7 @@ public struct RecordingView: View {
         viewModel.setPreparingState()
 
         Task { @MainActor in
-            let settings = settingsViewModel.generateScaleSettings()
-            await viewModel.startRecording(settings: settings)
+            await viewModel.startRecording()
         }
     }
 
@@ -314,11 +219,9 @@ struct RecordingView_Previews: PreviewProvider {
             RecordingView(
                 viewModel: RecordingViewModel(
                     startRecordingUseCase: PreviewMockStartRecordingUseCase(),
-                    startRecordingWithScaleUseCase: PreviewMockStartRecordingWithScaleUseCase(),
                     stopRecordingUseCase: PreviewMockStopRecordingUseCase(),
                     audioPlayer: PreviewMockAudioPlayer(),
                     pitchDetector: RealtimePitchDetector(),
-                    scalePlaybackCoordinator: ScalePlaybackCoordinator(scalePlayer: PreviewMockScalePlayer()),
                     subscriptionViewModel: SubscriptionViewModel(
                         getStatusUseCase: PreviewMockGetStatusUseCase(),
                         purchaseUseCase: PreviewMockPurchaseUseCase(),
@@ -333,45 +236,18 @@ struct RecordingView_Previews: PreviewProvider {
 
 // MARK: - Preview Mocks
 
-private class PreviewMockScalePlayer: ScalePlayerProtocol {
-    var isPlaying: Bool = false
-    var currentNoteIndex: Int = 0
-    var progress: Double = 0.0
-    var currentScaleElement: ScaleElement? = nil
-
-    func loadScale(_ notes: [MIDINote], tempo: Tempo) async throws {}
-    func loadScaleElements(_ elements: [ScaleElement], tempo: Tempo) async throws {}
-    func play(muted: Bool) async throws {}
-    func stop() async {}
-    func startTimestampRecording(recordingStartTime: Date) {}
-    func stopTimestampRecording() {}
-    func getPlaybackTimeline() -> ScalePlaybackTimeline? { nil }
-}
-
 private class PreviewMockStartRecordingUseCase: StartRecordingUseCaseProtocol {
     func execute(user: User) async throws -> RecordingSession {
         try await Task.sleep(nanoseconds: 1_000_000_000)
         return RecordingSession(
             recordingURL: URL(fileURLWithPath: "/tmp/preview.m4a"),
-            settings: nil,
-            startedAt: Date()
-        )
-    }
-}
-
-private class PreviewMockStartRecordingWithScaleUseCase: StartRecordingWithScaleUseCaseProtocol {
-    func execute(user: User, settings: ScaleSettings) async throws -> RecordingSession {
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        return RecordingSession(
-            recordingURL: URL(fileURLWithPath: "/tmp/preview.m4a"),
-            settings: settings,
             startedAt: Date()
         )
     }
 }
 
 private class PreviewMockStopRecordingUseCase: StopRecordingUseCaseProtocol {
-    func setRecordingContext(url: URL, settings: ScaleSettings?) {
+    func setRecordingContext(url: URL) {
         // Preview mock doesn't need to track context
     }
 

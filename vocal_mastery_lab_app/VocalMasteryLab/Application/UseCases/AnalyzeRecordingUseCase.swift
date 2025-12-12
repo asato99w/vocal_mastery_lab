@@ -74,7 +74,6 @@ public class AnalyzeRecordingUseCase {
     private let analyzerFactory: AudioFileAnalyzerFactoryProtocol
     private let analysisCache: AnalysisCacheProtocol
     private let pitchDataCache: PitchDataCacheProtocol?
-    private let octaveCorrectionService: OctaveCorrectionService
     private let audioSettingsRepository: AudioSettingsRepositoryProtocol?
     private let recordingRepository: RecordingRepositoryProtocol?
     private let logger: LoggerProtocol
@@ -93,7 +92,6 @@ public class AnalyzeRecordingUseCase {
         analyzerFactory: AudioFileAnalyzerFactoryProtocol,
         analysisCache: AnalysisCacheProtocol,
         pitchDataCache: PitchDataCacheProtocol? = nil,
-        octaveCorrectionService: OctaveCorrectionService = OctaveCorrectionService(),
         audioSettingsRepository: AudioSettingsRepositoryProtocol? = nil,
         recordingRepository: RecordingRepositoryProtocol? = nil,
         logger: LoggerProtocol
@@ -101,7 +99,6 @@ public class AnalyzeRecordingUseCase {
         self.analyzerFactory = analyzerFactory
         self.analysisCache = analysisCache
         self.pitchDataCache = pitchDataCache
-        self.octaveCorrectionService = octaveCorrectionService
         self.audioSettingsRepository = audioSettingsRepository
         self.recordingRepository = recordingRepository
         self.logger = logger
@@ -112,7 +109,6 @@ public class AnalyzeRecordingUseCase {
         audioFileAnalyzer: AudioFileAnalyzerProtocol,
         analysisCache: AnalysisCacheProtocol,
         pitchDataCache: PitchDataCacheProtocol? = nil,
-        octaveCorrectionService: OctaveCorrectionService = OctaveCorrectionService(),
         logger: LoggerProtocol
     ) {
         // Create a simple factory that always returns the same analyzer
@@ -121,7 +117,6 @@ public class AnalyzeRecordingUseCase {
             analyzerFactory: factory,
             analysisCache: analysisCache,
             pitchDataCache: pitchDataCache,
-            octaveCorrectionService: octaveCorrectionService,
             logger: logger
         )
     }
@@ -150,7 +145,6 @@ public class AnalyzeRecordingUseCase {
         if !algorithmChanged, let cachedResult = analysisCache.get(recording.id) {
             logger.info("In-memory cache hit for recording: \(recording.id.value.uuidString)", category: "useCase")
             await progress(1.0)
-            logScaleBarTimestamps(recording: recording)
             return cachedResult
         }
 
@@ -166,24 +160,16 @@ public class AnalyzeRecordingUseCase {
                 progress: progress
             )
 
-            // Apply octave correction if playback timeline exists
-            let correctedPitchData = applyOctaveCorrection(
-                to: cachedPitchData,
-                recording: recording
-            )
-
-            // Create analysis result with corrected pitch data
+            // Create analysis result
             let result = AnalysisResult(
-                pitchData: correctedPitchData,
-                spectrogramData: spectrogramData,
-                scaleSettings: recording.scaleSettings
+                pitchData: cachedPitchData,
+                spectrogramData: spectrogramData
             )
 
             // Update in-memory cache
             analysisCache.set(recording.id, result: result)
 
             logger.info("Analysis completed (pitch from cache) for recording: \(recording.id.value.uuidString)", category: "useCase")
-            logScaleBarTimestamps(recording: recording)
 
             return result
         }
@@ -197,20 +183,13 @@ public class AnalyzeRecordingUseCase {
             progress: progress
         )
 
-        // Save raw pitch data to file cache for persistence (before correction)
+        // Save pitch data to file cache for persistence
         pitchDataCache?.set(recording.id, pitchData: pitchData)
 
-        // Apply octave correction if playback timeline exists
-        let correctedPitchData = applyOctaveCorrection(
-            to: pitchData,
-            recording: recording
-        )
-
-        // Create analysis result with corrected pitch data
+        // Create analysis result
         let result = AnalysisResult(
-            pitchData: correctedPitchData,
-            spectrogramData: spectrogramData,
-            scaleSettings: recording.scaleSettings
+            pitchData: pitchData,
+            spectrogramData: spectrogramData
         )
 
         // Cache the corrected results in memory
@@ -220,7 +199,6 @@ public class AnalyzeRecordingUseCase {
         await updateRecordingAlgorithm(recording: recording, algorithm: algorithm)
 
         logger.info("Analysis completed (full) for recording: \(recording.id.value.uuidString)", category: "useCase")
-        logScaleBarTimestamps(recording: recording)
 
         return result
     }
@@ -238,61 +216,6 @@ public class AnalyzeRecordingUseCase {
         } catch {
             logger.error("Failed to update recording analysisAlgorithm: \(error.localizedDescription)", category: "useCase")
         }
-    }
-
-    /// Log scale bar timestamps for timing comparison debugging
-    private func logScaleBarTimestamps(recording: Recording) {
-        if let timeline = recording.playbackTimeline {
-            let segments = timeline.noteSegments
-            FileLogger.shared.log(
-                level: "DEBUG",
-                category: "scale_bar",
-                message: "PlaybackTimeline found: \(segments.count) segments"
-            )
-            for (index, segment) in segments.prefix(15).enumerated() {
-                FileLogger.shared.log(
-                    level: "DEBUG",
-                    category: "scale_bar",
-                    message: "ScaleBar #\(index + 1): start=\(String(format: "%.3f", segment.startTime))s, end=\(String(format: "%.3f", segment.endTime))s, MIDI=\(segment.note.value)"
-                )
-            }
-            if segments.count > 15 {
-                FileLogger.shared.log(
-                    level: "DEBUG",
-                    category: "scale_bar",
-                    message: "... and \(segments.count - 15) more scale bars"
-                )
-            }
-        } else {
-            FileLogger.shared.log(
-                level: "DEBUG",
-                category: "scale_bar",
-                message: "No PlaybackTimeline for recording: \(recording.id.value.uuidString.prefix(8))"
-            )
-        }
-    }
-
-    // MARK: - Private Methods
-
-    /// Apply octave correction to pitch data using playback timeline
-    /// - Parameters:
-    ///   - pitchData: Raw pitch analysis data
-    ///   - recording: Recording containing playback timeline
-    /// - Returns: Corrected pitch data (or original if no timeline)
-    private func applyOctaveCorrection(
-        to pitchData: PitchAnalysisData,
-        recording: Recording
-    ) -> PitchAnalysisData {
-        guard let timeline = recording.playbackTimeline else {
-            return pitchData
-        }
-
-        let segments = timeline.noteSegments
-        guard !segments.isEmpty else {
-            return pitchData
-        }
-
-        return octaveCorrectionService.applyCorrection(to: pitchData, segments: segments)
     }
 
     /// Check if valid cached data exists for a recording

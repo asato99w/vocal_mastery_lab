@@ -44,12 +44,10 @@ final class RecordingListViewModelTests: XCTestCase {
             Recording(
                 fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
                 duration: Duration(seconds: 10.0),
-                scaleSettings: ScaleSettings.mvpDefault
             ),
             Recording(
                 fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
                 duration: Duration(seconds: 15.0),
-                scaleSettings: ScaleSettings.mvpDefault
             )
         ]
         mockRepository.recordingsToReturn = testRecordings
@@ -111,7 +109,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
 
         // When
@@ -131,7 +128,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
 
         // Set longer play duration so playback doesn't complete during test
@@ -160,12 +156,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
 
         // When - play first recording
@@ -190,7 +184,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockAudioPlayer.playShouldFail = true
 
@@ -238,12 +231,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 15.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -264,7 +255,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
 
@@ -283,7 +273,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
 
@@ -303,7 +292,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockAudioPlayer._currentTime = 5.0
         mockAudioPlayer.playDurationNanoseconds = 500_000_000 // 500ms to allow position tracking
@@ -367,7 +355,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -388,7 +375,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -411,12 +397,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -443,7 +427,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -470,7 +453,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -505,12 +487,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -535,12 +515,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -562,12 +540,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -592,12 +568,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -619,7 +593,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -637,7 +610,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -657,12 +629,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -677,12 +647,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -697,12 +665,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -717,12 +683,10 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording1 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         let recording2 = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording1, recording2]
         await sut.loadRecordings()
@@ -739,7 +703,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.recordingsToReturn = [recording]
         await sut.loadRecordings()
@@ -760,7 +723,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.savedRecordings = [recording]
         mockRepository.recordingsToReturn = [recording]
@@ -779,7 +741,6 @@ final class RecordingListViewModelTests: XCTestCase {
         var recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault,
             title: "既存のタイトル"
         )
         mockRepository.savedRecordings = [recording]
@@ -799,7 +760,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.savedRecordings = [recording]
         mockRepository.recordingsToReturn = [recording]
@@ -818,7 +778,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.savedRecordings = [recording]
         mockRepository.recordingsToReturn = [recording]
@@ -836,7 +795,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.savedRecordings = [recording]
         mockRepository.recordingsToReturn = [recording]
@@ -855,7 +813,6 @@ final class RecordingListViewModelTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
-            scaleSettings: ScaleSettings.mvpDefault
         )
         mockRepository.savedRecordings = [recording]
         mockRepository.recordingsToReturn = [recording]

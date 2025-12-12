@@ -50,49 +50,6 @@ struct RecordingInfoPanel: View {
             }
             .font(.caption)
             .foregroundColor(ColorPalette.text.opacity(0.7))
-
-            Divider()
-                .background(ColorPalette.text.opacity(0.2))
-
-            // Scale settings (if available)
-            if let settings = recording.scaleSettings {
-                VStack(alignment: .leading, spacing: 6) {
-                    // Scale pattern and start note
-                    HStack {
-                        Image(systemName: "music.note.list")
-                            .foregroundColor(ColorPalette.primary)
-                        Text(settings.notePattern.displayNameKey.localized)
-                        Spacer()
-                        Text(settings.startNote.noteName)
-                            .fontWeight(.medium)
-                    }
-                    .font(.caption)
-
-                    // Tempo
-                    HStack {
-                        Image(systemName: "metronome")
-                            .foregroundColor(ColorPalette.primary)
-                        Text("\(Int(60.0 / settings.tempo.secondsPerNote)) " + "recording.tempo_unit".localized)
-                        Spacer()
-                    }
-                    .font(.caption)
-
-                    // Key progression
-                    HStack {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .foregroundColor(ColorPalette.primary)
-                        Text("↑\(settings.ascendingKeyCount) ↓\(settings.descendingKeyCount)")
-                        Spacer()
-                    }
-                    .font(.caption)
-                }
-                .foregroundColor(ColorPalette.text.opacity(0.8))
-            } else {
-                Text("analysis.no_scale".localized)
-                    .font(.caption)
-                    .foregroundColor(ColorPalette.text.opacity(0.5))
-                    .italic()
-            }
         }
         .padding(12)
         .background(ColorPalette.secondary)
@@ -149,18 +106,6 @@ struct RecordingInfoCompact: View {
             HStack(spacing: 8) {
                 // Duration pill
                 InfoPill(icon: "clock", text: recording.duration.formatted)
-
-                // Scale info pills (if available)
-                if let settings = recording.scaleSettings {
-                    InfoPill(
-                        icon: "music.note.list",
-                        text: settings.notePattern.displayNameKey.localized
-                    )
-                    InfoPill(
-                        icon: "music.note",
-                        text: "\(settings.startNote.noteName) \(Int(60.0 / settings.tempo.secondsPerNote))BPM"
-                    )
-                }
 
                 Spacer()
             }

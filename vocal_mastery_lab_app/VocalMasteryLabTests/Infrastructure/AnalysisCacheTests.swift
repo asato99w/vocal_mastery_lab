@@ -28,7 +28,7 @@ final class AnalysisCacheTests: XCTestCase {
             timeStamps: [0.0, 0.05],
             frequencies: [261.6, 262.3],
             confidences: [0.85, 0.92],
-            targetNotes: [nil, nil]
+            amplitudes: [0.5, 0.6]
         )
 
         let spectrogramData = SpectrogramData(
@@ -39,8 +39,7 @@ final class AnalysisCacheTests: XCTestCase {
 
         return AnalysisResult(
             pitchData: pitchData,
-            spectrogramData: spectrogramData,
-            scaleSettings: nil
+            spectrogramData: spectrogramData
         )
     }
 

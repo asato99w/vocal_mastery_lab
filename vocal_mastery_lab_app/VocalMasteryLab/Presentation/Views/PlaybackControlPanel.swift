@@ -10,9 +10,8 @@ struct PlaybackControlPanel: View {
             // Recording info or placeholder message
             VStack(spacing: 4) {
                 if let recording = viewModel.selectedRecording {
-                    if let scaleDisplayNameKey = recording.scaleDisplayNameKey,
-                       let startNoteName = recording.scaleStartNoteName {
-                        Text("\(startNoteName) \(scaleDisplayNameKey.localized)")
+                    if let title = recording.title {
+                        Text(title)
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(ColorPalette.text)

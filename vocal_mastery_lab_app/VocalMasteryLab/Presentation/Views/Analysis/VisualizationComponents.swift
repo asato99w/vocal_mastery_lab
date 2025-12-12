@@ -229,8 +229,6 @@ struct SpectrogramView: View {
 struct PitchAnalysisView: View {
     let currentTime: Double
     let pitchData: PitchAnalysisData?
-    let scaleSettings: ScaleSettings?
-    let playbackTimeline: ScalePlaybackTimeline?  // Actual recorded timestamps for note bars
     var isExpanded: Bool = false
     var onExpand: (() -> Void)? = nil
     var onCollapse: (() -> Void)? = nil
@@ -471,15 +469,6 @@ struct PitchAnalysisView: View {
         let viewportWidth = viewportSize.width
         let viewportHeight = viewportSize.height
 
-        // Debug: Log scaleSettings status
-        if let settings = scaleSettings {
-            let calculator = TargetFrequencyCalculator()
-            let targetFreqs = calculator.calculateTargetFrequencies(from: settings)
-            FileLogger.shared.log(level: "DEBUG", category: "pitch_graph", message: "🎯 scaleSettings exists: startNote=\(settings.startNote.noteName), targetFreqs count=\(targetFreqs.count), freqs=\(targetFreqs.prefix(5))")
-        } else {
-            FileLogger.shared.log(level: "DEBUG", category: "pitch_graph", message: "⚠️ scaleSettings is nil - target lines will NOT be drawn")
-        }
-
         // Create clipping region for graph area
         let clipRect = CGRect(
             x: PitchGraphConstants.leftMargin,
@@ -503,31 +492,14 @@ struct PitchAnalysisView: View {
             leftPadding: leftPadding
         )
 
-        // Get current pitch frequency at playback position for highlighting
-        let currentPitchFrequency = getCurrentPitchFrequency(from: data)
-
-        // Draw target note bars (karaoke-style rectangles) if playback timeline is available
-        // Uses actual recorded timestamps from scale playback (not theoretical values)
-        if let timeline = playbackTimeline {
-            let segments = timeline.noteSegments
-            renderer.drawTargetNoteBars(
-                context: clippedContext,
-                canvasHeight: canvasHeight,
-                segments: segments,
-                leftPadding: leftPadding,
-                currentPitchFrequency: currentPitchFrequency
-            )
-        }
-
         // Prepare pitch data for renderer
         let pitchPoints = preparePitchData(from: data)
-        let targetSegments = playbackTimeline?.noteSegments
         renderer.drawPitchData(
             context: clippedContext,
             canvasHeight: canvasHeight,
             pitchData: pitchPoints,
             leftPadding: leftPadding,
-            targetSegments: targetSegments
+            targetSegments: nil
         )
 
         // Draw frequency labels (fixed X, scrolling Y) - use original context without clipping
@@ -537,20 +509,6 @@ struct PitchAnalysisView: View {
             viewportHeight: viewportHeight,
             paperTop: scrollManager.paperTop
         )
-
-        // Draw target note labels (fixed at right edge, scrolling Y) - use original context
-        if let settings = scaleSettings {
-            let targetFrequencies = getTargetFrequencies(from: settings)
-            renderer.drawTargetNoteLabels(
-                context: context,
-                canvasHeight: canvasHeight,
-                viewportWidth: viewportWidth,
-                viewportHeight: viewportHeight,
-                paperTop: scrollManager.paperTop,
-                targetFrequencies: targetFrequencies,
-                highlightedFrequency: currentPitchFrequency
-            )
-        }
 
         // Draw time labels (scrolling X, fixed Y)
         let dataDuration = data.timeStamps.last ?? 10.0
@@ -588,41 +546,6 @@ struct PitchAnalysisView: View {
         }
 
         return result
-    }
-
-    /// Get the pitch frequency at the current playback position
-    /// - Parameter data: Pitch analysis data
-    /// - Returns: The frequency at current time, or nil if not available
-    private func getCurrentPitchFrequency(from data: PitchAnalysisData) -> Double? {
-        guard !data.timeStamps.isEmpty else { return nil }
-
-        // Find the closest timestamp to currentTime
-        var closestIndex = 0
-        var minDiff = Double.infinity
-
-        for (index, timestamp) in data.timeStamps.enumerated() {
-            let diff = abs(timestamp - currentTime)
-            if diff < minDiff {
-                minDiff = diff
-                closestIndex = index
-            }
-        }
-
-        // Only use if within reasonable time window (100ms)
-        guard minDiff <= 0.1 else { return nil }
-
-        let frequency = Double(data.frequencies[closestIndex])
-
-        // Return nil if frequency is outside valid range
-        guard frequency >= PitchGraphConstants.minFrequency &&
-              frequency <= PitchGraphConstants.maxFrequency else { return nil }
-
-        return frequency
-    }
-
-    private func getTargetFrequencies(from settings: ScaleSettings) -> [Double] {
-        let calculator = TargetFrequencyCalculator()
-        return calculator.calculateTargetFrequencies(from: settings)
     }
 
     private func drawLegend(context: GraphicsContext, size: CGSize) {

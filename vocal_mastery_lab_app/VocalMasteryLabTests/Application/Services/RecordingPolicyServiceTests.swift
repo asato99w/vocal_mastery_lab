@@ -19,23 +19,23 @@ final class RecordingPolicyServiceTests: XCTestCase {
 
     // MARK: - canStartRecording Tests
 
-    func testCanStartRecording_FreeUser_NoScale_WithinDailyLimit_ReturnsAllowed() async throws {
-        // Given: Free user, no scale, within daily limit
+    func testCanStartRecording_FreeUser_WithinDailyLimit_ReturnsAllowed() async throws {
+        // Given: Free user within daily limit
         let user = User(
             id: UserId(),
             subscriptionStatus: .defaultFree(cohort: .v2_0),
-            recordingStats: RecordingStats(todayCount: 2) // Under limit (3)
+            recordingStats: RecordingStats(todayCount: 2) // Under limit
         )
 
         // When: Check if can start recording
-        let permission = try await sut.canStartRecording(user: user, settings: nil)
+        let permission = try await sut.canStartRecording(user: user)
 
         // Then: Should be allowed
         XCTAssertEqual(permission, .allowed)
     }
 
-    func testCanStartRecording_FreeUser_NoScale_ExceedsDailyLimit_ReturnsDenied() async throws {
-        // Given: Free user, no scale, exceeds daily limit
+    func testCanStartRecording_FreeUser_ExceedsDailyLimit_ReturnsDenied() async throws {
+        // Given: Free user exceeds daily limit
         let user = User(
             id: UserId(),
             subscriptionStatus: .defaultFree(cohort: .v2_0),
@@ -43,7 +43,7 @@ final class RecordingPolicyServiceTests: XCTestCase {
         )
 
         // When: Check if can start recording
-        let permission = try await sut.canStartRecording(user: user, settings: nil)
+        let permission = try await sut.canStartRecording(user: user)
 
         // Then: Should be denied with daily limit reason
         if case .denied(let reason) = permission {
@@ -53,24 +53,8 @@ final class RecordingPolicyServiceTests: XCTestCase {
         }
     }
 
-    func testCanStartRecording_FreeUser_WithScale_ReturnsAllowed() async throws {
-        // Given: Free user with scale recording (now available for all tiers)
-        let user = User(
-            id: UserId(),
-            subscriptionStatus: .defaultFree(cohort: .v2_0),
-            recordingStats: RecordingStats(todayCount: 0)
-        )
-        let settings = ScaleSettings.mvpDefault
-
-        // When: Check if can start recording with scale
-        let permission = try await sut.canStartRecording(user: user, settings: settings)
-
-        // Then: Should be allowed (scale recording available for all tiers)
-        XCTAssertEqual(permission, .allowed)
-    }
-
-    func testCanStartRecording_PremiumUser_WithScale_WithinDailyLimit_ReturnsAllowed() async throws {
-        // Given: Premium user, with scale, within daily limit
+    func testCanStartRecording_PremiumUser_WithinDailyLimit_ReturnsAllowed() async throws {
+        // Given: Premium user within daily limit
         let user = User(
             id: UserId(),
             subscriptionStatus: SubscriptionStatus(
@@ -79,12 +63,11 @@ final class RecordingPolicyServiceTests: XCTestCase {
                 isActive: true,
                 expirationDate: Date().addingTimeInterval(30 * 24 * 3600)
             ),
-            recordingStats: RecordingStats(todayCount: 5) // Under premium limit (10)
+            recordingStats: RecordingStats(todayCount: 5) // Under premium limit
         )
-        let settings = ScaleSettings.mvpDefault
 
         // When: Check if can start recording
-        let permission = try await sut.canStartRecording(user: user, settings: settings)
+        let permission = try await sut.canStartRecording(user: user)
 
         // Then: Should be allowed
         XCTAssertEqual(permission, .allowed)
@@ -104,46 +87,24 @@ final class RecordingPolicyServiceTests: XCTestCase {
         )
 
         // When: Check if can start recording
-        let permission = try await sut.canStartRecording(user: user, settings: nil)
+        let permission = try await sut.canStartRecording(user: user)
 
         // Then: Should be allowed (premium has unlimited daily count)
         XCTAssertEqual(permission, .allowed)
     }
 
-    func testCanStartRecording_GrandfatherUser_WithScale_ReturnsAllowed() async throws {
+    func testCanStartRecording_GrandfatherUser_ReturnsAllowed() async throws {
         // Given: v1.0 Grandfather user
         let user = User(
             id: UserId(),
             subscriptionStatus: .grandfatherFree,
             recordingStats: RecordingStats(todayCount: 5)
         )
-        let settings = ScaleSettings.mvpDefault
 
         // When: Check if can start recording
-        let permission = try await sut.canStartRecording(user: user, settings: settings)
+        let permission = try await sut.canStartRecording(user: user)
 
         // Then: Should be allowed (grandfather privileges)
-        XCTAssertEqual(permission, .allowed)
-    }
-
-    func testCanStartRecording_ExpiredPremium_WithScale_ReturnsAllowed() async throws {
-        // Given: Expired Premium subscription (scale recording now available for all tiers)
-        let user = User(
-            id: UserId(),
-            subscriptionStatus: SubscriptionStatus(
-                tier: .premium,
-                cohort: .v2_0,
-                isActive: false,
-                expirationDate: Date().addingTimeInterval(-24 * 3600) // Yesterday
-            ),
-            recordingStats: RecordingStats(todayCount: 0)
-        )
-        let settings = ScaleSettings.mvpDefault
-
-        // When: Check if can start recording with scale
-        let permission = try await sut.canStartRecording(user: user, settings: settings)
-
-        // Then: Should be allowed (scale recording available for all tiers)
         XCTAssertEqual(permission, .allowed)
     }
 

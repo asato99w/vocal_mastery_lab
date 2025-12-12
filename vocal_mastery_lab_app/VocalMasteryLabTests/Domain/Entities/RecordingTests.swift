@@ -13,10 +13,8 @@ final class RecordingTests: XCTestCase {
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             createdAt: Date(),
             duration: Duration(seconds: 10.0),
-            scaleSettings: nil,
             title: "Test Recording",
-            playbackTimeline: nil,
-            analysisAlgorithm: .pyinDefault
+            analysisAlgorithm: .yin
         )
 
         // When: Encoding and decoding
@@ -26,7 +24,7 @@ final class RecordingTests: XCTestCase {
         let decoded = try decoder.decode(Recording.self, from: data)
 
         // Then: analysisAlgorithm should be preserved
-        XCTAssertEqual(decoded.analysisAlgorithm, .pyinDefault)
+        XCTAssertEqual(decoded.analysisAlgorithm, .yin)
         XCTAssertEqual(decoded.id, recording.id)
         XCTAssertEqual(decoded.title, recording.title)
     }
@@ -59,14 +57,12 @@ final class RecordingTests: XCTestCase {
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             createdAt: Date(),
             duration: Duration(seconds: 10.0),
-            scaleSettings: nil,
             analysisAlgorithm: nil
         )
 
         // When: Encoding
         let encoder = JSONEncoder()
         let data = try encoder.encode(recording)
-        let jsonString = String(data: data, encoding: .utf8)!
 
         // Then: analysisAlgorithm should not be included or be null
         // (Either is acceptable for optional fields)
@@ -82,7 +78,6 @@ final class RecordingTests: XCTestCase {
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             createdAt: Date(),
             duration: Duration(seconds: 10.0),
-            scaleSettings: nil,
             analysisAlgorithm: .yin
         )
 
@@ -104,23 +99,15 @@ final class RecordingTests: XCTestCase {
         let fileURL = URL(fileURLWithPath: "/tmp/test.m4a")
         let createdAt = Date()
         let duration = Duration(seconds: 30.0)
-        let scaleSettings = ScaleSettings(
-            startNote: try! MIDINote(60),
-            endNote: try! MIDINote(72),
-            notePattern: .fiveToneScale,
-            tempo: try! Tempo(secondsPerNote: 0.5)
-        )
         let title = "My Recording"
-        let algorithm: PitchDetectionAlgorithm = .pyinDefault
+        let algorithm: PitchDetectionAlgorithm = .yin
 
         let recording = Recording(
             id: id,
             fileURL: fileURL,
             createdAt: createdAt,
             duration: duration,
-            scaleSettings: scaleSettings,
             title: title,
-            playbackTimeline: nil,
             analysisAlgorithm: algorithm
         )
 
@@ -129,7 +116,6 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(recording.fileURL, fileURL)
         XCTAssertEqual(recording.createdAt, createdAt)
         XCTAssertEqual(recording.duration, duration)
-        XCTAssertEqual(recording.scaleSettings, scaleSettings)
         XCTAssertEqual(recording.title, title)
         XCTAssertEqual(recording.analysisAlgorithm, algorithm)
     }
@@ -141,20 +127,13 @@ final class RecordingTests: XCTestCase {
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             createdAt: Date(),
             duration: Duration(seconds: 10.0),
-            scaleSettings: nil,
             analysisAlgorithm: nil
         )
 
         // When: Updating algorithm
-        recording.analysisAlgorithm = .pyinDefault
-
-        // Then: Algorithm should be updated
-        XCTAssertEqual(recording.analysisAlgorithm, .pyinDefault)
-
-        // When: Changing to different algorithm
         recording.analysisAlgorithm = .yin
 
-        // Then: Algorithm should be changed
+        // Then: Algorithm should be updated
         XCTAssertEqual(recording.analysisAlgorithm, .yin)
     }
 }

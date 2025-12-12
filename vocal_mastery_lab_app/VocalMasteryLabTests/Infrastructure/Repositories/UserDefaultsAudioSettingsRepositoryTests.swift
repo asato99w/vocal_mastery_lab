@@ -42,7 +42,6 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
     func testGet_whenSettingsSaved_shouldReturnSavedSettings() throws {
         // Given
         let customSettings = AudioDetectionSettings(
-            scalePlaybackVolume: 0.7,
             recordingPlaybackVolume: 0.7,
             rmsSilenceThreshold: 0.015,
             confidenceThreshold: 0.35
@@ -61,7 +60,6 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
     func testSave_shouldPersistSettings() throws {
         // Given
         let settings = AudioDetectionSettings(
-            scalePlaybackVolume: 0.6,
             recordingPlaybackVolume: 0.6,
             rmsSilenceThreshold: 0.01,
             confidenceThreshold: 0.5
@@ -79,13 +77,11 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
     func testSave_multipleTimes_shouldOverwritePreviousSettings() throws {
         // Given
         let settings1 = AudioDetectionSettings(
-            scalePlaybackVolume: 0.5,
             recordingPlaybackVolume: 0.5,
             rmsSilenceThreshold: 0.01,
             confidenceThreshold: 0.3
         )
         let settings2 = AudioDetectionSettings(
-            scalePlaybackVolume: 0.9,
             recordingPlaybackVolume: 0.9,
             rmsSilenceThreshold: 0.03,
             confidenceThreshold: 0.6
@@ -106,7 +102,6 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
     func testReset_shouldRemoveSavedSettings() throws {
         // Given: Save custom settings
         let customSettings = AudioDetectionSettings(
-            scalePlaybackVolume: 0.7,
             recordingPlaybackVolume: 0.7,
             rmsSilenceThreshold: 0.015,
             confidenceThreshold: 0.35
@@ -134,7 +129,6 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
     func testReset_shouldPersistDefaultsAfterReset() throws {
         // Given
         let customSettings = AudioDetectionSettings(
-            scalePlaybackVolume: 0.7,
             recordingPlaybackVolume: 0.7,
             rmsSilenceThreshold: 0.015,
             confidenceThreshold: 0.35
@@ -159,7 +153,6 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
     func testSave_withClampedValues_shouldPersistClampedValues() throws {
         // Given: Settings with out-of-range values (will be clamped)
         let settings = AudioDetectionSettings(
-            scalePlaybackVolume: 1.5,  // Will be clamped to 1.0
             recordingPlaybackVolume: 1.5,  // Will be clamped to 1.0
             rmsSilenceThreshold: -0.1,  // Will be clamped to 0.001
             confidenceThreshold: 2.0  // Will be clamped to 1.0
@@ -170,7 +163,6 @@ final class UserDefaultsAudioSettingsRepositoryTests: XCTestCase {
         let retrieved = sut.get()
 
         // Then: Should retrieve clamped values
-        XCTAssertEqual(retrieved.scalePlaybackVolume, 1.0)
         XCTAssertEqual(retrieved.recordingPlaybackVolume, 1.0)
         XCTAssertEqual(retrieved.rmsSilenceThreshold, 0.001)
         XCTAssertEqual(retrieved.confidenceThreshold, 1.0)

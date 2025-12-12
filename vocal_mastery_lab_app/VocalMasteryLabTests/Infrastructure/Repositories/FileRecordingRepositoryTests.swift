@@ -28,8 +28,7 @@ final class FileRecordingRepositoryTests: XCTestCase {
         // Given
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault
+            duration: Duration(seconds: 10.0)
         )
         try await sut.save(recording)
 
@@ -47,8 +46,7 @@ final class FileRecordingRepositoryTests: XCTestCase {
         // Given
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault
+            duration: Duration(seconds: 10.0)
         )
 
         // When/Then
@@ -73,13 +71,11 @@ final class FileRecordingRepositoryTests: XCTestCase {
 
         let recording1 = Recording(
             fileURL: url1,
-            duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault
+            duration: Duration(seconds: 10.0)
         )
         let recording2 = Recording(
             fileURL: url2,
-            duration: Duration(seconds: 15.0),
-            scaleSettings: ScaleSettings.mvpDefault
+            duration: Duration(seconds: 15.0)
         )
         try await sut.save(recording1)
         try await sut.save(recording2)
@@ -102,7 +98,6 @@ final class FileRecordingRepositoryTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault,
             title: "初期タイトル"
         )
         try await sut.save(recording)
@@ -124,7 +119,6 @@ final class FileRecordingRepositoryTests: XCTestCase {
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault,
             title: "テスト録音"
         )
 
@@ -151,13 +145,11 @@ final class FileRecordingRepositoryTests: XCTestCase {
         let recording1 = Recording(
             fileURL: url1,
             duration: Duration(seconds: 10.0),
-            scaleSettings: ScaleSettings.mvpDefault,
             title: "録音1"
         )
         let recording2 = Recording(
             fileURL: url2,
             duration: Duration(seconds: 15.0),
-            scaleSettings: ScaleSettings.mvpDefault,
             title: "録音2"
         )
         try await sut.save(recording1)

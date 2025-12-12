@@ -5,18 +5,10 @@ import VocalisDomain
 struct RealtimeDisplayArea: View {
     let recordingState: RecordingState
     let isPlayingRecording: Bool
-    let targetPitch: DetectedPitch?
     let detectedPitch: DetectedPitch?
     let pitchAccuracy: PitchAccuracy
     let spectrum: [Float]?
     let audioLevel: Float  // dB value (-160 to 0)
-    let isSettingsPanelVisible: Bool
-
-    /// Whether to show the realtime display content
-    /// Hidden only when settings panel is visible (to save space)
-    private var shouldShowContent: Bool {
-        !isSettingsPanelVisible
-    }
 
     /// Whether audio visualization is actively running
     private var isActive: Bool {
@@ -24,43 +16,37 @@ struct RealtimeDisplayArea: View {
     }
 
     var body: some View {
-        if shouldShowContent {
-            VStack(spacing: 12) {
-                // Frequency spectrum bar chart
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("recording.realtime_spectrum_title".localized)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+        VStack(spacing: 12) {
+            // Frequency spectrum bar chart
+            VStack(alignment: .leading, spacing: 6) {
+                Text("recording.realtime_spectrum_title".localized)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
 
-                    FrequencySpectrumView(
-                        spectrum: spectrum,
-                        isActive: isActive
-                    )
-                    .frame(maxHeight: .infinity)
-                }
-
-                Divider()
-
-                // Indicators (audio level + pitch)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("recording.indicator_title".localized)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    IndicatorView(
-                        isActive: isActive,
-                        targetPitch: targetPitch,
-                        detectedPitch: detectedPitch,
-                        pitchAccuracy: pitchAccuracy,
-                        audioLevel: audioLevel
-                    )
-                }
+                FrequencySpectrumView(
+                    spectrum: spectrum,
+                    isActive: isActive
+                )
+                .frame(maxHeight: .infinity)
             }
-            .padding(12)
-        } else {
-            // Empty state when not recording or playing - minimal space usage
-            EmptyView()
+
+            Divider()
+
+            // Indicators (audio level + pitch)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("recording.indicator_title".localized)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                IndicatorView(
+                    isActive: isActive,
+                    detectedPitch: detectedPitch,
+                    pitchAccuracy: pitchAccuracy,
+                    audioLevel: audioLevel
+                )
+            }
         }
+        .padding(12)
     }
 }
 
@@ -191,7 +177,6 @@ struct FrequencySpectrumView: View {
 /// Combined indicator view displaying audio level and pitch in compact format
 struct IndicatorView: View {
     let isActive: Bool
-    let targetPitch: DetectedPitch?
     let detectedPitch: DetectedPitch?
     let pitchAccuracy: PitchAccuracy
     let audioLevel: Float  // dB value (-160 to 0)
@@ -201,7 +186,7 @@ struct IndicatorView: View {
             // Audio level row
             audioLevelRow
 
-            // Pitch row (compact: target → detected  diff)
+            // Pitch row (detected pitch only)
             pitchRow
         }
         .padding(12)
@@ -231,7 +216,7 @@ struct IndicatorView: View {
         }
     }
 
-    // MARK: - Pitch Row (Compact)
+    // MARK: - Pitch Row
 
     private var pitchRow: some View {
         HStack(spacing: 8) {
@@ -240,19 +225,7 @@ struct IndicatorView: View {
                 .foregroundColor(ColorPalette.text.opacity(0.6))
                 .frame(width: 50, alignment: .leading)
 
-            // Target note (fixed width for stable arrow position)
-            Text(targetPitch?.noteName ?? "--")
-                .font(.callout)
-                .fontWeight(.bold)
-                .foregroundColor(targetPitch != nil ? ColorPalette.accent : ColorPalette.text.opacity(0.6))
-                .frame(width: 36, alignment: .trailing)
-                .accessibilityIdentifier(targetPitch != nil ? "TargetPitchNoteName" : "TargetPitchEmpty")
-
-            Text("→")
-                .font(.caption)
-                .foregroundColor(ColorPalette.text.opacity(0.4))
-
-            // Detected note (fixed width for consistency)
+            // Detected note
             if isActive, let detected = detectedPitch {
                 HStack(spacing: 4) {
                     Circle()
@@ -263,7 +236,6 @@ struct IndicatorView: View {
                         .font(.callout)
                         .fontWeight(.bold)
                         .foregroundColor(ColorPalette.text)
-                        .frame(width: 36, alignment: .leading)
                         .accessibilityIdentifier("DetectedPitchNoteName")
 
                     // Cents deviation
@@ -278,7 +250,6 @@ struct IndicatorView: View {
                 Text(isActive ? "..." : "--")
                     .font(.callout)
                     .foregroundColor(ColorPalette.text.opacity(0.6))
-                    .frame(width: 36, alignment: .leading)
                     .accessibilityIdentifier("DetectedPitchEmpty")
             }
 

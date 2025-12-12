@@ -1,7 +1,7 @@
 import SwiftUI
 import VocalisDomain
 
-/// Audio output settings configuration view (volumes and scale sound type)
+/// Audio output settings configuration view (recording playback volume)
 struct AudioOutputSettingsView: View {
 
     @StateObject private var viewModel: AudioOutputSettingsViewModel
@@ -20,18 +20,6 @@ struct AudioOutputSettingsView: View {
                 // Volume Settings Section
                 Section {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Scale Playback Volume
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("output.scale_volume".localized)
-                                    .font(.body)
-                                Spacer()
-                                Text("\(Int(viewModel.scalePlaybackVolume * 100))%")
-                                    .foregroundColor(.secondary)
-                            }
-                            Slider(value: $viewModel.scalePlaybackVolume, in: 0...1, step: 0.05)
-                        }
-
                         // Recording Playback Volume
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
@@ -48,22 +36,6 @@ struct AudioOutputSettingsView: View {
                     Text("output.volume_settings".localized)
                 } footer: {
                     Text("output.volume_description".localized)
-                }
-
-                // Scale Sound Type Section
-                Section {
-                    Picker("output.sound_source".localized, selection: $viewModel.scaleSoundType) {
-                        ForEach(ScaleSoundType.allCases, id: \.self) { soundType in
-                            Text(soundType.displayNameKey.localized)
-                                .tag(soundType)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("ScaleSoundTypePicker")
-                } header: {
-                    Text("output.scale_sound".localized)
-                } footer: {
-                    Text(viewModel.scaleSoundType.descriptionKey.localized)
                 }
 
                 // Reset Button Section

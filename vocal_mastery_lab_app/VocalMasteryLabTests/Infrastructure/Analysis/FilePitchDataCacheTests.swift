@@ -118,14 +118,14 @@ final class FilePitchDataCacheTests: XCTestCase {
             timeStamps: [0.0, 0.1],
             frequencies: [440.0, 441.0],
             confidences: [0.9, 0.9],
-            targetNotes: [nil, nil]
+            amplitudes: [0.5, 0.5]
         )
 
         let pitchData2 = PitchAnalysisData(
             timeStamps: [0.0, 0.1, 0.2],
             frequencies: [220.0, 221.0, 222.0],
             confidences: [0.8, 0.8, 0.8],
-            targetNotes: [nil, nil, nil]
+            amplitudes: [0.5, 0.5, 0.5]
         )
 
         // When
@@ -176,14 +176,14 @@ final class FilePitchDataCacheTests: XCTestCase {
             timeStamps: [0.0],
             frequencies: [440.0],
             confidences: [0.9],
-            targetNotes: [nil]
+            amplitudes: [0.5]
         )
 
         let newData = PitchAnalysisData(
             timeStamps: [0.0, 0.1],
             frequencies: [880.0, 881.0],
             confidences: [0.95, 0.95],
-            targetNotes: [nil, nil]
+            amplitudes: [0.5, 0.5]
         )
 
         sut.set(recordingId, pitchData: originalData)
@@ -203,7 +203,7 @@ final class FilePitchDataCacheTests: XCTestCase {
             timeStamps: [0.0, 0.05, 0.10, 0.15],
             frequencies: [261.6, 262.3, 261.9, 263.0],
             confidences: [0.85, 0.92, 0.88, 0.90],
-            targetNotes: [nil, nil, nil, nil]
+            amplitudes: [0.5, 0.6, 0.55, 0.58]
         )
     }
 }

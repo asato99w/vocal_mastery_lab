@@ -136,7 +136,6 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
         var timeStamps: [Double] = []
         var frequencies: [Float] = []
         var confidences: [Float] = []
-        var targetNotes: [MIDINote?] = []
         var amplitudes: [Float] = []
 
         // For detecting note transitions in logs
@@ -151,7 +150,6 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
             timeStamps.append(compensatedTimestamp)
             frequencies.append(frequency)
             confidences.append(frame.confidence)
-            targetNotes.append(nil)  // Target notes will be set by ViewModel based on scaleSettings
             amplitudes.append(frame.amplitude)
 
             // Log pitch detection data for timing analysis
@@ -198,7 +196,6 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
             timeStamps: timeStamps,
             frequencies: frequencies,
             confidences: confidences,
-            targetNotes: targetNotes,
             amplitudes: amplitudes
         )
     }

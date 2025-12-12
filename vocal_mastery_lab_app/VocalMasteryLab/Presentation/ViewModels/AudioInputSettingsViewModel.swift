@@ -47,19 +47,17 @@ final class AudioInputSettingsViewModel: ObservableObject {
     /// Save current settings to repository
     func saveSettings() throws {
         // Get current full settings and update only input-related properties
-        var settings = repository.get()
-        settings = AudioDetectionSettings(
-            scalePlaybackVolume: settings.scalePlaybackVolume,
+        let settings = repository.get()
+        let newSettings = AudioDetectionSettings(
             recordingPlaybackVolume: settings.recordingPlaybackVolume,
             rmsSilenceThreshold: detectionSensitivity.rmsThreshold,
             confidenceThreshold: confidenceThreshold,
-            scaleSoundType: settings.scaleSoundType,
             pitchAlgorithm: pitchAlgorithm
         )
-        try repository.save(settings)
+        try repository.save(newSettings)
 
         // Update original settings after successful save
-        originalSettings = settings
+        originalSettings = newSettings
     }
 
     /// Reset input settings to defaults
@@ -68,21 +66,19 @@ final class AudioInputSettingsViewModel: ObservableObject {
         let defaultSettings = AudioDetectionSettings.default
 
         // Get current settings and update only input-related properties
-        var currentSettings = repository.get()
-        currentSettings = AudioDetectionSettings(
-            scalePlaybackVolume: currentSettings.scalePlaybackVolume,
+        let currentSettings = repository.get()
+        let newSettings = AudioDetectionSettings(
             recordingPlaybackVolume: currentSettings.recordingPlaybackVolume,
             rmsSilenceThreshold: defaultSettings.rmsSilenceThreshold,
             confidenceThreshold: defaultSettings.confidenceThreshold,
-            scaleSoundType: currentSettings.scaleSoundType,
             pitchAlgorithm: defaultSettings.pitchAlgorithm
         )
-        try repository.save(currentSettings)
+        try repository.save(newSettings)
 
         // Update UI
         detectionSensitivity = defaultSettings.sensitivity
         confidenceThreshold = defaultSettings.confidenceThreshold
         pitchAlgorithm = defaultSettings.pitchAlgorithm
-        originalSettings = currentSettings
+        originalSettings = newSettings
     }
 }
