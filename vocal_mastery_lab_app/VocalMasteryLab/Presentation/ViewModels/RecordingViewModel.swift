@@ -36,6 +36,8 @@ public class RecordingViewModel: ObservableObject {
     @Published public var countdownValue: Int = 0 // Forwarded from RecordingStateViewModel
     @Published public var lastRecordingURL: URL?
     @Published public var lastRecordingId: RecordingId?
+    @Published public var lastRecordingDate: Date?
+    @Published public var lastRecordingDuration: TimeInterval?
     @Published public var isPlayingRecording: Bool = false
 
     @Published public var currentTier: SubscriptionTier = .free
@@ -108,6 +110,12 @@ public class RecordingViewModel: ObservableObject {
 
         recordingStateVM.$lastRecordingId
             .assign(to: &$lastRecordingId)
+
+        recordingStateVM.$lastRecordingDate
+            .assign(to: &$lastRecordingDate)
+
+        recordingStateVM.$lastRecordingDuration
+            .assign(to: &$lastRecordingDuration)
 
         recordingStateVM.$currentTier
             .assign(to: &$currentTier)

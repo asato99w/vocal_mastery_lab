@@ -2,31 +2,51 @@ import SwiftUI
 import SubscriptionDomain
 import VocalisDomain
 
-/// Main recording screen view with real-time visualization
+/// Simple recording screen view based on UI_DESIGN.md specification
 public struct RecordingView: View {
     @StateObject private var viewModel: RecordingViewModel
     @StateObject private var localization = LocalizationManager.shared
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    @Environment(\.uiTestAnimationsDisabled) var uiTestAnimationsDisabled
     @State private var showingAlert: Bool = false
-    @State private var recordingForAnalysis: Recording?
+    @State private var elapsedTime: TimeInterval = 0
+    @State private var timer: Timer?
 
     public init(viewModel: RecordingViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     public var body: some View {
-        GeometryReader { geometry in
-            Group {
-                if geometry.size.width > geometry.size.height {
-                    // Landscape layout
-                    landscapeLayout
-                } else {
-                    // Portrait layout
-                    portraitLayout
-                }
+        VStack(spacing: 24) {
+            Spacer()
+
+            // Timer display
+            timerSection
+
+            // Record controls (uses existing RecordingControls component)
+            RecordingControls(
+                recordingState: viewModel.recordingState,
+                hasLastRecording: viewModel.lastRecordingURL != nil,
+                isPlayingRecording: viewModel.isPlayingRecording,
+                canStartRecording: true,
+                onStart: startRecording,
+                onStop: stopRecording,
+                onCancel: cancelCountdown,
+                onPlayLast: togglePlayback,
+                onAnalyze: nil  // No analyze button in simple mode
+            )
+
+            // Background hint
+            backgroundHintSection
+
+            Spacer()
+
+            // Last recording info section (only shown when recording exists)
+            if viewModel.lastRecordingURL != nil {
+                lastRecordingInfoSection
             }
+
+            Spacer()
         }
+        .padding()
         .navigationTitle("recording.title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(viewModel.recordingState == .recording || viewModel.recordingState == .countdown)
@@ -45,6 +65,7 @@ public struct RecordingView: View {
                         Text("recording.list_button".localized)
                     }
                 }
+                .accessibilityIdentifier("RecordingListButton")
                 .disabled(viewModel.recordingState == .recording || viewModel.recordingState == .countdown)
             }
         }
@@ -64,102 +85,148 @@ public struct RecordingView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .onChange(of: viewModel.errorMessage) { errorMessage in
-            // Show alert when error message is set
             showingAlert = errorMessage != nil
+        }
+        .onChange(of: viewModel.recordingState) { newState in
+            if newState == .recording {
+                startTimer()
+            } else {
+                stopTimer()
+                if newState == .idle {
+                    elapsedTime = 0
+                }
+            }
         }
         .onAppear {
             // Reload audio settings when returning to recording screen
-            // (in case user modified settings in SettingsView)
             viewModel.reloadAudioSettings(from: DependencyContainer.shared.audioSettingsRepository)
         }
         .onDisappear {
-            // Stop playback when navigating away from this screen
+            stopTimer()
             if viewModel.isPlayingRecording {
                 Task {
                     await viewModel.stopPlayback()
                 }
             }
-            // Cleanup audio session to release microphone
             viewModel.recordingStateVM.cleanup()
         }
     }
 
-    // MARK: - Landscape Layout
+    // MARK: - Timer Section
 
-    private var landscapeLayout: some View {
+    private var timerSection: some View {
         VStack(spacing: 8) {
-            RealtimeDisplayArea(
-                recordingState: viewModel.recordingState,
-                isPlayingRecording: viewModel.isPlayingRecording,
-                detectedPitch: viewModel.detectedPitch,
-                pitchAccuracy: viewModel.pitchAccuracy,
-                spectrum: viewModel.spectrum,
-                audioLevel: viewModel.audioLevel
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            RecordingControls(
-                recordingState: viewModel.recordingState,
-                hasLastRecording: viewModel.lastRecordingURL != nil,
-                isPlayingRecording: viewModel.isPlayingRecording,
-                canStartRecording: true,
-                onStart: startRecording,
-                onStop: stopRecording,
-                onCancel: cancelCountdown,
-                onPlayLast: togglePlayback,
-                onAnalyze: navigateToAnalysisScreen,
-                isCompactLayout: true  // Horizontal button layout for landscape
-            )
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Portrait Layout
-
-    private var portraitLayout: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                RealtimeDisplayArea(
-                    recordingState: viewModel.recordingState,
-                    isPlayingRecording: viewModel.isPlayingRecording,
-                    detectedPitch: viewModel.detectedPitch,
-                    pitchAccuracy: viewModel.pitchAccuracy,
-                    spectrum: viewModel.spectrum,
-                    audioLevel: viewModel.audioLevel
-                )
-                .frame(height: 350)
-
-                RecordingControls(
-                    recordingState: viewModel.recordingState,
-                    hasLastRecording: viewModel.lastRecordingURL != nil,
-                    isPlayingRecording: viewModel.isPlayingRecording,
-                    canStartRecording: true,
-                    onStart: startRecording,
-                    onStop: stopRecording,
-                    onCancel: cancelCountdown,
-                    onPlayLast: togglePlayback,
-                    onAnalyze: navigateToAnalysisScreen
-                )
+            HStack {
+                if viewModel.recordingState == .recording {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 12, height: 12)
+                    Text("recording.recording_label".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                }
             }
-            .padding()
-        }
-        .navigationDestination(item: $recordingForAnalysis) { recording in
-            AnalysisView(
-                recording: recording,
-                audioPlayer: DependencyContainer.shared.audioPlayer,
-                analyzeRecordingUseCase: DependencyContainer.shared.analyzeRecordingUseCase
-            )
+            .frame(height: 20)
+
+            Text(formatTime(elapsedTime))
+                .font(.system(size: 48, weight: .light, design: .monospaced))
+                .accessibilityIdentifier("RecordingTimerLabel")
         }
     }
 
-    // MARK: - Action Handlers
+    // MARK: - Background Hint Section
+
+    private var backgroundHintSection: some View {
+        HStack {
+            Image(systemName: "lightbulb.fill")
+                .foregroundColor(.yellow)
+            Text("recording.background_hint".localized)
+                .font(.caption)
+                .foregroundColor(ColorPalette.text.opacity(0.6))
+        }
+        .accessibilityIdentifier("BackgroundRecordingHint")
+    }
+
+    // MARK: - Last Recording Info Section
+
+    private var lastRecordingInfoSection: some View {
+        VStack(spacing: 12) {
+            Divider()
+
+            // Recording info
+            VStack(spacing: 4) {
+                if let date = viewModel.lastRecordingDate {
+                    Text(formatDate(date))
+                        .font(.subheadline)
+                        .foregroundColor(ColorPalette.text.opacity(0.8))
+                        .accessibilityIdentifier("LastRecordingDateLabel")
+                }
+
+                if let duration = viewModel.lastRecordingDuration {
+                    Text(formatDuration(duration))
+                        .font(.caption)
+                        .foregroundColor(ColorPalette.text.opacity(0.6))
+                        .accessibilityIdentifier("LastRecordingDurationLabel")
+                }
+            }
+
+            // Vocal extraction button
+            Button(action: vocalExtraction) {
+                HStack {
+                    Image(systemName: "waveform")
+                    Text("recording.vocal_extraction_button".localized)
+                }
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityIdentifier("VocalExtractionButton")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("LastRecordingSection")
+    }
+
+    // MARK: - Timer Management
+
+    private func startTimer() {
+        elapsedTime = 0
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            elapsedTime += 0.1
+        }
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    // MARK: - Formatting
+
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = (Int(time) % 3600) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        if minutes > 0 {
+            return "\(minutes)分\(seconds)秒"
+        } else {
+            return "\(seconds)秒"
+        }
+    }
+
+    // MARK: - Actions
 
     private func startRecording() {
-        // Immediate visual feedback - set preparing state synchronously before async work
         viewModel.setPreparingState()
-
         Task { @MainActor in
             await viewModel.startRecording()
         }
@@ -178,13 +245,11 @@ public struct RecordingView: View {
     }
 
     private func togglePlayback() {
-        // Synchronous state update for immediate UI response
         if viewModel.isPlayingRecording {
             Task {
                 await viewModel.stopPlayback()
             }
         } else {
-            // Pre-set playing state BEFORE async operation for immediate UI update
             viewModel.isPlayingRecording = true
             Task {
                 await viewModel.playLastRecording()
@@ -192,21 +257,8 @@ public struct RecordingView: View {
         }
     }
 
-    private func navigateToAnalysisScreen() {
-        // Stop playback before navigating to analysis
-        if viewModel.isPlayingRecording {
-            Task {
-                await viewModel.stopPlayback()
-            }
-        }
-
-        // Fetch saved Recording from Repository (Single Source of Truth)
-        guard let recordingId = viewModel.lastRecordingId else { return }
-        Task {
-            if let recording = try? await DependencyContainer.shared.recordingRepository.findById(recordingId) {
-                recordingForAnalysis = recording
-            }
-        }
+    private func vocalExtraction() {
+        // TODO: Implement vocal extraction
     }
 }
 
@@ -230,7 +282,6 @@ struct RecordingView_Previews: PreviewProvider {
                 )
             )
         }
-        .previewInterfaceOrientation(.landscapeLeft)
     }
 }
 
@@ -247,9 +298,7 @@ private class PreviewMockStartRecordingUseCase: StartRecordingUseCaseProtocol {
 }
 
 private class PreviewMockStopRecordingUseCase: StopRecordingUseCaseProtocol {
-    func setRecordingContext(url: URL) {
-        // Preview mock doesn't need to track context
-    }
+    func setRecordingContext(url: URL) {}
 
     func execute() async throws -> StopRecordingResult {
         try await Task.sleep(nanoseconds: 500_000_000)
@@ -290,14 +339,10 @@ private class PreviewMockGetStatusUseCase: GetSubscriptionStatusUseCaseProtocol 
 }
 
 private class PreviewMockPurchaseUseCase: PurchaseSubscriptionUseCaseProtocol {
-    func execute(tier: SubscriptionTier) async throws {
-        // Mock implementation for preview
-    }
+    func execute(tier: SubscriptionTier) async throws {}
 }
 
 private class PreviewMockRestoreUseCase: RestorePurchasesUseCaseProtocol {
-    func execute() async throws {
-        // Mock implementation for preview
-    }
+    func execute() async throws {}
 }
 #endif

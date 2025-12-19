@@ -74,6 +74,9 @@
 "recording.stop_playback_button" = "Stop";
 "recording.analyze_button" = "Analyze Recording";
 "recording.countdown_message" = "Counting down...";
+"recording.recording_label" = "Recording";
+"recording.background_hint" = "Recording continues even in background";
+"recording.vocal_extraction_button" = "Vocal Extraction";
 
 // MARK: - RecordingListView
 "list.title" = "Recording List";

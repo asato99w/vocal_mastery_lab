@@ -55,9 +55,11 @@ DerivedData/
 
 # Swift Package Manager
 .build/
-Packages/
 Package.pins
-Package.resolved
+# Package.resolved at root level only
+/Package.resolved
+# Swift PM user data
+.swiftpm/xcode/xcuserdata/
 
 # CocoaPods
 Pods/

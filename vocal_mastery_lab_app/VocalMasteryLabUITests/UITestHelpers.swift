@@ -231,6 +231,7 @@ extension XCTestCase {
         app.launchArguments = [
             "-UITestResetRecordingCount",
             "-UITestDisableAnimations",
+            "-UITestDisableCountdown",
             "-AppleLanguages", "(\(language))",
             "-AppleLocale", locale
         ]

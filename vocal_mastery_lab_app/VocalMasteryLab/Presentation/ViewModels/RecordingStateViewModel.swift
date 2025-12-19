@@ -24,6 +24,8 @@ public class RecordingStateViewModel: ObservableObject {
     @Published public private(set) var countdownValue: Int = 3
     @Published public private(set) var lastRecordingURL: URL?
     @Published public private(set) var lastRecordingId: RecordingId?
+    @Published public private(set) var lastRecordingDate: Date?
+    @Published public private(set) var lastRecordingDuration: TimeInterval?
     @Published internal var isPlayingRecording: Bool = false
     @Published public private(set) var isCountdownComplete: Bool = false
 
@@ -253,9 +255,11 @@ public class RecordingStateViewModel: ObservableObject {
             progress = 0.0
             isCountdownComplete = false
 
-            // Save the recording URL and ID for playback
+            // Save the recording URL, ID, date and duration for playback
             lastRecordingURL = recordingURL
             lastRecordingId = result.recordingId
+            lastRecordingDate = Date()
+            lastRecordingDuration = result.duration
 
         } catch {
             // Handle error

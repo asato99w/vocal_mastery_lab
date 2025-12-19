@@ -74,6 +74,9 @@
 "recording.stop_playback_button" = "停止";
 "recording.analyze_button" = "録音を分析";
 "recording.countdown_message" = "カウントダウン中...";
+"recording.recording_label" = "録音中";
+"recording.background_hint" = "バックグラウンドに切り替えても録音は継続されます";
+"recording.vocal_extraction_button" = "ボーカル抽出";
 
 // MARK: - RecordingListView
 "list.title" = "録音一覧";
