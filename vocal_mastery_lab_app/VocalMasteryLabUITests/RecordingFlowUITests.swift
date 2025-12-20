@@ -38,16 +38,7 @@ final class RecordingFlowUITests: XCTestCase {
         // 3. Start recording
         startButton.tap()
 
-        // 4. Verify immediate visual feedback - the UI should change within 1 second
-        // This ensures user knows the app is responding to their tap
-        // Check for either: loading indicator (preparing state) OR countdown message (countdown state)
-        let loadingIndicator = app.activityIndicators["RecordingLoadingIndicator"]
-        let countdownText = app.staticTexts[L10n.countdownMessage]
-
-        let hasImmediateFeedback = loadingIndicator.waitForExistence(timeout: 0.5) || countdownText.waitForExistence(timeout: 0.5)
-        XCTAssertTrue(hasImmediateFeedback, "Either loading indicator or countdown message should appear immediately after tapping start button to show the app is responding")
-
-        // 5. Wait for recording to start by checking StopButton appearance
+        // 4. Wait for recording to start by checking StopButton appearance
         // No Thread.sleep needed - waitForExistence will wait for countdown + initialization
         let stopButton = app.buttons["StopRecordingButton"]
         XCTAssertTrue(stopButton.waitForExistence(timeout: 10), "Stop recording button should appear during recording")

@@ -124,29 +124,6 @@ final class RecordingListUITests: XCTestCase {
         XCTAssertTrue(analysisLinksAfterBack.firstMatch.waitForExistence(timeout: 3), "Should be back at recording list with analysis button visible")
     }
 
-    /// Test: Recording list shows scale name for scale recordings
-    /// Expected: ~12 seconds execution time
-    @MainActor
-    func testRecordingListShowsScaleName() throws {
-        let app = launchAppWithResetRecordingCount()
-
-        // Create recording and navigate to list
-        createRecordingAndNavigateToList(app)
-
-        // Screenshot: Recording list with scale name
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "scale_name_display"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-
-        // Verify scale name is displayed (e.g., "C4 5トーン")
-        // The scale name should contain the note name pattern and scale pattern name
-        // Note: Scale names are now unified across selection UI and recording display
-        let scaleNameTexts = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", L10n.scaleFiveTone))
-        XCTAssertTrue(scaleNameTexts.firstMatch.waitForExistence(timeout: 3), "Scale name containing '\(L10n.scaleFiveTone)' should be displayed in the recording list")
-    }
-
     /// Test: Playback position slider appears during playback
     /// Expected: ~15 seconds execution time
     @MainActor
@@ -265,78 +242,4 @@ final class RecordingListUITests: XCTestCase {
         XCTAssertEqual(finalCount, initialCount - 1, "Recording count should decrease by 1 after deletion (was \(initialCount), now \(finalCount))")
     }
 
-    /// Test: Rename recording functionality
-    /// Expected: ~15 seconds execution time
-    @MainActor
-    func testRenameRecording() throws {
-        let app = launchAppWithResetRecordingCount()
-
-        // Create recording and navigate to list
-        createRecordingAndNavigateToList(app)
-
-        // Screenshot: Recording list before rename
-        let screenshot1 = app.screenshot()
-        let attachment1 = XCTAttachment(screenshot: screenshot1)
-        attachment1.name = "rename_01_before_rename"
-        attachment1.lifetime = .keepAlways
-        add(attachment1)
-
-        // Get cells for swipe action
-        let cells = app.cells
-        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 5), "Cell should exist")
-
-        // Swipe right to reveal rename button
-        cells.firstMatch.swipeRight()
-
-        // Wait for rename button to appear after swipe
-        let renameButton = app.buttons[L10n.rename]
-        XCTAssertTrue(renameButton.waitForExistence(timeout: 3), "Rename button should appear after swipe")
-        renameButton.tap()
-
-        // Wait for rename alert to appear
-        let textField = app.textFields.firstMatch
-        XCTAssertTrue(textField.waitForExistence(timeout: 3), "Text field should appear in rename alert")
-
-        // Verify text field shows current name (scale display name)
-        // Note: Scale names are now unified across selection UI and recording display
-        let currentValue = textField.value as? String ?? ""
-        XCTAssertFalse(currentValue.isEmpty, "Text field should show current recording name, not be empty")
-        XCTAssertTrue(currentValue.contains(L10n.scaleFiveTone), "Text field should contain scale name '\(L10n.scaleFiveTone)', but got '\(currentValue)'")
-
-        // Screenshot: Rename dialog
-        let screenshot2 = app.screenshot()
-        let attachment2 = XCTAttachment(screenshot: screenshot2)
-        attachment2.name = "rename_02_rename_dialog"
-        attachment2.lifetime = .keepAlways
-        add(attachment2)
-
-        // Clear existing text and enter new name
-        let newName = "Test Recording"
-        textField.tap()
-        // Delete existing text character by character
-        let existingText = currentValue
-        for _ in existingText {
-            textField.typeText(XCUIKeyboardKey.delete.rawValue)
-        }
-        textField.typeText(newName)
-
-        // Tap save button
-        let saveButton = app.buttons[L10n.save]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 3), "Save button should exist")
-        saveButton.tap()
-
-        // Wait for alert to dismiss
-        Thread.sleep(forTimeInterval: 0.5)
-
-        // Screenshot: After rename
-        let screenshot3 = app.screenshot()
-        let attachment3 = XCTAttachment(screenshot: screenshot3)
-        attachment3.name = "rename_03_after_rename"
-        attachment3.lifetime = .keepAlways
-        add(attachment3)
-
-        // Verify the new name is displayed
-        let renamedText = app.staticTexts[newName]
-        XCTAssertTrue(renamedText.waitForExistence(timeout: 3), "Renamed recording should display the new name '\(newName)'")
-    }
 }

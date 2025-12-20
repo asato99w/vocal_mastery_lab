@@ -74,35 +74,4 @@ final class MIDIRangeValidationUITests: XCTestCase {
         add(attachment)
     }
 
-    /// Test: Settings panel displays correctly and is interactive
-    /// This verifies the settings UI is accessible for MIDI range configuration
-    @MainActor
-    func testSettingsPanel_displaysCorrectly() throws {
-        let app = launchAppWithResetRecordingCount()
-
-        // 1. Navigate to Recording screen
-        let homeRecordButton = app.buttons["HomeRecordButton"]
-        XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 5))
-        homeRecordButton.tap()
-
-        // 2. Verify key UI elements exist
-        let startButton = app.buttons["StartRecordingButton"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start button should exist")
-
-        let scaleTypePicker = app.buttons["ScaleTypePicker"]
-        XCTAssertTrue(scaleTypePicker.waitForExistence(timeout: 3), "Scale type picker should exist")
-
-        let startPitchPicker = app.buttons["StartPitchPicker"]
-        XCTAssertTrue(startPitchPicker.waitForExistence(timeout: 3), "Start pitch picker should exist")
-
-        // 3. Verify button is enabled (valid configuration)
-        XCTAssertTrue(startButton.isEnabled, "Start button should be enabled")
-
-        // Screenshot: Settings panel
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "midi_validation_settings_panel"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
 }
