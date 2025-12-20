@@ -28,6 +28,46 @@ public class AudioSessionManager {
         setupNotificationObservers()
         Logger.audio.info("AudioSessionManager initialized")
         FileLogger.shared.log(level: "INFO", category: "audio", message: "AudioSessionManager initialized")
+
+        // Log initial audio session state for debugging
+        logAudioSessionState("initialization")
+    }
+
+    // MARK: - Debug Logging
+
+    /// Log current audio session state for debugging background audio issues
+    private func logAudioSessionState(_ context: String) {
+        let audioSession = AVAudioSession.sharedInstance()
+        let category = audioSession.category.rawValue
+        let mode = audioSession.mode.rawValue
+        let options = describeOptions(audioSession.categoryOptions)
+        let isOtherAudioPlaying = audioSession.isOtherAudioPlaying
+        let secondaryAudioHint = audioSession.secondaryAudioShouldBeSilencedHint
+
+        let message = """
+        [DEBUG-\(context)] AudioSession State:
+          - category: \(category)
+          - mode: \(mode)
+          - options: \(options)
+          - isOtherAudioPlaying: \(isOtherAudioPlaying)
+          - secondaryAudioShouldBeSilencedHint: \(secondaryAudioHint)
+        """
+        Logger.audio.info("\(message)")
+        FileLogger.shared.log(level: "DEBUG", category: "audio", message: message)
+    }
+
+    /// Describe category options as readable string
+    private func describeOptions(_ options: AVAudioSession.CategoryOptions) -> String {
+        var descriptions: [String] = []
+        if options.contains(.mixWithOthers) { descriptions.append("mixWithOthers") }
+        if options.contains(.duckOthers) { descriptions.append("duckOthers") }
+        if options.contains(.allowBluetooth) { descriptions.append("allowBluetooth") }
+        if options.contains(.defaultToSpeaker) { descriptions.append("defaultToSpeaker") }
+        if options.contains(.interruptSpokenAudioAndMixWithOthers) { descriptions.append("interruptSpokenAudioAndMixWithOthers") }
+        if options.contains(.allowBluetoothA2DP) { descriptions.append("allowBluetoothA2DP") }
+        if options.contains(.allowAirPlay) { descriptions.append("allowAirPlay") }
+        if options.contains(.overrideMutedMicrophoneInterruption) { descriptions.append("overrideMutedMicrophoneInterruption") }
+        return descriptions.isEmpty ? "(none)" : descriptions.joined(separator: ", ")
     }
 
     // MARK: - Audio Session Configuration
@@ -49,10 +89,11 @@ public class AudioSessionManager {
             // .defaultToSpeaker: plays audio through speaker even when recording
             // .allowBluetooth: supports bluetooth headsets for calls
             // .allowBluetoothA2DP: enables Bluetooth recording (required for Bluetooth microphone)
+            // .mixWithOthers: allows recording to continue when other apps play audio (e.g., YouTube)
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: mode,
-                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
             )
 
             // Set preferred sample rate (44.1 kHz for high quality)
@@ -72,6 +113,9 @@ public class AudioSessionManager {
 
             Logger.audio.info("Audio session configured for recording: category=playAndRecord, mode=\(String(describing: mode)), sampleRate=44100Hz")
             FileLogger.shared.log(level: "INFO", category: "audio", message: "Audio session configured for recording: mode=\(String(describing: mode)), sampleRate=44100Hz")
+
+            // Log state after configuration for debugging
+            logAudioSessionState("after-configureForRecording")
         } catch {
             // Log detailed error information for debugging
             let nsError = error as NSError
@@ -119,7 +163,8 @@ public class AudioSessionManager {
             //   - Built-in: .videoRecording (volume priority with auto-gain)
             // Note: .measurement mode is incompatible with .defaultToSpeaker option
             // so we conditionally include .defaultToSpeaker based on mode
-            var options: AVAudioSession.CategoryOptions = [.allowBluetooth, .allowBluetoothA2DP]
+            // .mixWithOthers: allows recording to continue when other apps play audio
+            var options: AVAudioSession.CategoryOptions = [.allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
             if mode != .measurement {
                 options.insert(.defaultToSpeaker)
             }
@@ -202,6 +247,9 @@ public class AudioSessionManager {
             try audioSession.setActive(true)
             Logger.audio.info("Audio session activated")
             FileLogger.shared.log(level: "INFO", category: "audio", message: "Audio session activated")
+
+            // Log state after activation for debugging
+            logAudioSessionState("after-activate")
         } catch {
             // Handle specific errors that are acceptable
             let nsError = error as NSError
@@ -301,6 +349,38 @@ public class AudioSessionManager {
             name: AVAudioSession.routeChangeNotification,
             object: nil
         )
+
+        // Listen for secondary audio hint changes (other apps playing audio)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSilenceSecondaryAudioHint),
+            name: AVAudioSession.silenceSecondaryAudioHintNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleSilenceSecondaryAudioHint(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
+              let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .begin:
+            Logger.audio.info("[DEBUG] Secondary audio hint: BEGIN - another app started playing audio")
+            FileLogger.shared.log(level: "DEBUG", category: "audio", message: "Secondary audio hint: BEGIN - another app started playing audio")
+            logAudioSessionState("secondary-audio-begin")
+
+        case .end:
+            Logger.audio.info("[DEBUG] Secondary audio hint: END - another app stopped playing audio")
+            FileLogger.shared.log(level: "DEBUG", category: "audio", message: "Secondary audio hint: END - another app stopped playing audio")
+            logAudioSessionState("secondary-audio-end")
+
+        @unknown default:
+            Logger.audio.warning("[DEBUG] Unknown secondary audio hint type: \(typeValue)")
+            FileLogger.shared.log(level: "WARNING", category: "audio", message: "Unknown secondary audio hint type: \(typeValue)")
+        }
     }
 
     @objc private func handleInterruption(notification: Notification) {

@@ -2,6 +2,7 @@ import SwiftUI
 import VocalisDomain
 import OSLog
 import StoreKit
+import AVFoundation
 
 @available(iOS 15.0, macOS 11.0, *)
 @main
@@ -10,6 +11,9 @@ public struct VocalMasteryLabApp: App {
         subsystem: "com.kazuasato.VocalMasteryLab",
         category: "boot"
     )
+
+    /// Track app lifecycle for background audio debugging
+    @Environment(\.scenePhase) private var scenePhase
 
     #if DEBUG
     private let animationsDisabled = CommandLine.arguments.contains("-UITestDisableAnimations")
@@ -66,6 +70,38 @@ public struct VocalMasteryLabApp: App {
                 .task {
                     await observeTransactionUpdates()
                 }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            logScenePhaseChange(from: oldPhase, to: newPhase)
+        }
+    }
+
+    // MARK: - App Lifecycle Logging
+
+    /// Log scene phase changes for background audio debugging
+    private func logScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+        let oldPhaseString = phaseDescription(oldPhase)
+        let newPhaseString = phaseDescription(newPhase)
+
+        let message = "[DEBUG-lifecycle] ScenePhase changed: \(oldPhaseString) → \(newPhaseString)"
+        Self.boot.info("\(message)")
+        FileLogger.shared.log(level: "DEBUG", category: "lifecycle", message: message)
+
+        // Log audio session state on each lifecycle change
+        let audioSession = AVFoundation.AVAudioSession.sharedInstance()
+        let category = audioSession.category.rawValue
+        let isActive = audioSession.isOtherAudioPlaying
+        let stateMessage = "[DEBUG-lifecycle] AudioSession: category=\(category), isOtherAudioPlaying=\(isActive)"
+        Self.boot.info("\(stateMessage)")
+        FileLogger.shared.log(level: "DEBUG", category: "lifecycle", message: stateMessage)
+    }
+
+    private func phaseDescription(_ phase: ScenePhase) -> String {
+        switch phase {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
         }
     }
 

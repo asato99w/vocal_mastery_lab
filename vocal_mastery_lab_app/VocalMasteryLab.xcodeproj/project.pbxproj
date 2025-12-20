@@ -38,6 +38,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D643F1522EF6F034002C3744 /* Exceptions for "VocalMasteryLab" folder in "VocalMasteryLab" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D6BF839B2E890B370076B2FC /* VocalMasteryLab */;
+		};
 		E3AB0A632EC1D06F00250DC8 /* Exceptions for "VocalMasteryLab" folder in "VocalMasteryLabTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -58,6 +65,7 @@
 		D6BF839E2E890B370076B2FC /* VocalMasteryLab */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				D643F1522EF6F034002C3744 /* Exceptions for "VocalMasteryLab" folder in "VocalMasteryLab" target */,
 				E3AB0A632EC1D06F00250DC8 /* Exceptions for "VocalMasteryLab" folder in "VocalMasteryLabTests" target */,
 				E3AB0A642EC1D06F00250DC8 /* Exceptions for "VocalMasteryLab" folder in "VocalMasteryLabUITests" target */,
 			);
@@ -453,9 +461,11 @@
 				DEVELOPMENT_TEAM = 76359B69WG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VocalMasteryLab/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "このアプリは録音機能のためにマイクへのアクセスが必要です。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -482,9 +492,11 @@
 				DEVELOPMENT_TEAM = 76359B69WG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VocalMasteryLab/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "このアプリは録音機能のためにマイクへのアクセスが必要です。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
