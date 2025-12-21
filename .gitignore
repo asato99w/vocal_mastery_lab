@@ -44,8 +44,7 @@ poc/models/*.mlmodel
 ._*
 
 # Xcode
-*.xcodeproj/xcuserdata/
-*.xcworkspace/xcuserdata/
+xcuserdata/
 DerivedData/
 *.moved-aside
 *.hmap
@@ -59,7 +58,7 @@ Package.pins
 # Package.resolved at root level only
 /Package.resolved
 # Swift PM user data
-.swiftpm/xcode/xcuserdata/
+.swiftpm/
 
 # CocoaPods
 Pods/
