@@ -73,3 +73,6 @@ Pods/
 # Temporary files
 *.tmp
 *.log
+
+# POC test outputs
+poc/tests/
