@@ -1,0 +1,12 @@
+# Audio files
+*.wav
+*.mp3
+*.flac
+*.m4a
+
+# Build artifacts
+.build/
+DerivedData/
+
+# macOS
+.DS_Store

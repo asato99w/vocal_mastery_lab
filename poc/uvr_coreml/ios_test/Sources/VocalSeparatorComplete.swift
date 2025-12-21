@@ -46,9 +46,6 @@ class VocalSeparatorComplete {
     struct SeparatedAudio {
         /// ボーカルトラック
         let vocals: AudioFileProcessor.AudioData
-
-        /// 伴奏トラック
-        let instrumental: AudioFileProcessor.AudioData
     }
 
     enum SeparationError: Error {
@@ -119,7 +116,7 @@ class VocalSeparatorComplete {
 
         // 4. CoreML推論
         print("\n🤖 ステップ3: CoreML推論実行")
-        let (vocalMask, instrumentalMask) = try predictMasks(
+        let vocalMask = try predictVocalMask(
             leftSTFT: leftSTFT,
             rightSTFT: rightSTFT
         )
@@ -130,14 +127,10 @@ class VocalSeparatorComplete {
             spectrogram: leftSTFT,
             mask: vocalMask
         )
-        let instrumentalSpec = applyComplexMask(
-            spectrogram: leftSTFT,
-            mask: instrumentalMask
-        )
 
         // 6. iSTFT実行
         print("\n🔄 ステップ5: iSTFT実行")
-        var vocals = stftProcessor.createAudioData(
+        let vocals = stftProcessor.createAudioData(
             leftMagnitude: vocalSpec.magnitude,
             leftPhase: vocalSpec.phase,
             rightMagnitude: vocalSpec.magnitude,  // 簡易版: 左を右にコピー
@@ -145,53 +138,36 @@ class VocalSeparatorComplete {
             sampleRate: configuration.sampleRate
         )
 
-        var instrumental = stftProcessor.createAudioData(
-            leftMagnitude: instrumentalSpec.magnitude,
-            leftPhase: instrumentalSpec.phase,
-            rightMagnitude: instrumentalSpec.magnitude,
-            rightPhase: instrumentalSpec.phase,
-            sampleRate: configuration.sampleRate
-        )
-
-        // iFFTスケーリング修正後、gainは不要のはず
-        // まず gain=1.0 でテスト
-        let gain: Float = 1.0
-        if gain != 1.0 {
-            vocals = applyGain(vocals, gain: gain)
-            instrumental = applyGain(instrumental, gain: gain)
-        }
-
         print("\n" + String(repeating: "=", count: 80))
-        print("✅ 音源分離完了")
+        print("✅ ボーカル抽出完了")
         print(String(repeating: "=", count: 80))
 
         return SeparatedAudio(
-            vocals: vocals,
-            instrumental: instrumental
+            vocals: vocals
         )
     }
 
-    /// 音声保存
+    /// ボーカル音声保存
     func save(
         separatedAudio: SeparatedAudio,
-        vocalsURL: URL,
-        instrumentalURL: URL
+        vocalsURL: URL
     ) throws {
-        print("\n💾 分離音声保存中...")
+        print("\n💾 ボーカル音声保存中...")
 
-        try AudioFileProcessor.saveAudio(separatedAudio.vocals, to: vocalsURL)
-        try AudioFileProcessor.saveAudio(separatedAudio.instrumental, to: instrumentalURL)
+        // 正規化してから保存（クリッピング防止）
+        let normalizedVocals = AudioFileProcessor.normalize(separatedAudio.vocals)
+        try AudioFileProcessor.saveAudio(normalizedVocals, to: vocalsURL)
 
         print("✅ 保存完了")
     }
 
     // MARK: - Private Methods
 
-    /// CoreML推論実行（チャンク処理）
-    private func predictMasks(
+    /// CoreML推論実行（チャンク処理）- ボーカルマスクのみ抽出
+    private func predictVocalMask(
         leftSTFT: STFTProcessorV2.SpectrogramData,
         rightSTFT: STFTProcessorV2.SpectrogramData
-    ) throws -> (vocal: STFTProcessorV2.SpectrogramData, instrumental: STFTProcessorV2.SpectrogramData) {
+    ) throws -> STFTProcessorV2.SpectrogramData {
 
         let timeFrames = leftSTFT.timeFrames
         let freqBins = min(leftSTFT.frequencyBins, 2048)  // モデル期待値
@@ -201,7 +177,6 @@ class VocalSeparatorComplete {
         print("   チャンク数: \(numChunks) (chunk_size=\(chunkSize))")
 
         var vocalMasks: [[Float]] = []
-        var instrumentalMasks: [[Float]] = []
 
         for chunkIndex in 0..<numChunks {
             let startFrame = chunkIndex * chunkSize
@@ -219,14 +194,10 @@ class VocalSeparatorComplete {
             // 推論実行
             let output = try predictChunk(chunk)
 
-            // 結果を分割
-            // NOTE: UVR-MDX-NETモデルでは Channel 0 = Instrumental, Channel 1 = Vocals
+            // ボーカルマスク抽出（Channel 0 がボーカル）
             let actualSize = endFrame - startFrame
-            let instrumentalChunk = extractChannelMask(output, channel: 0, actualSize: actualSize)
-            let vocalChunk = extractChannelMask(output, channel: 1, actualSize: actualSize)
-
+            let vocalChunk = extractChannelMask(output, channel: 0, actualSize: actualSize)
             vocalMasks.append(contentsOf: vocalChunk)
-            instrumentalMasks.append(contentsOf: instrumentalChunk)
 
             if (chunkIndex + 1) % 10 == 0 {
                 print("   進捗: \(chunkIndex + 1)/\(numChunks)")
@@ -235,20 +206,11 @@ class VocalSeparatorComplete {
 
         // 結果を整形
         let vocalMagnitude = reshape2D(vocalMasks, frequencyBins: freqBins)
-        let vocalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)  // 2048ビンに調整
+        let vocalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)
 
-        let instrumentalMagnitude = reshape2D(instrumentalMasks, frequencyBins: freqBins)
-        let instrumentalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)
-
-        return (
-            STFTProcessorV2.SpectrogramData(
-                magnitude: vocalMagnitude,
-                phase: vocalPhase
-            ),
-            STFTProcessorV2.SpectrogramData(
-                magnitude: instrumentalMagnitude,
-                phase: instrumentalPhase
-            )
+        return STFTProcessorV2.SpectrogramData(
+            magnitude: vocalMagnitude,
+            phase: vocalPhase
         )
     }
 
