@@ -28,12 +28,10 @@ public enum VocalExtractionState: Equatable {
 /// Data representing extraction result for UI display
 public struct ExtractionResultData: Equatable {
     public let vocalURL: URL
-    public let instrumentalURL: URL
     public let duration: Duration
 
-    public init(vocalURL: URL, instrumentalURL: URL, duration: Duration) {
+    public init(vocalURL: URL, duration: Duration) {
         self.vocalURL = vocalURL
-        self.instrumentalURL = instrumentalURL
         self.duration = duration
     }
 }
@@ -74,7 +72,6 @@ public class VocalExtractionViewModel: ObservableObject {
 
             state = .completed(result: ExtractionResultData(
                 vocalURL: result.vocalFileURL,
-                instrumentalURL: result.instrumentalFileURL,
                 duration: result.duration
             ))
         } catch {
@@ -101,15 +98,6 @@ public class VocalExtractionViewModel: ObservableObject {
             )
             try await extractedAudioRepository.save(vocalAudio)
 
-            // Save instrumental track
-            let instrumentalAudio = ExtractedAudio(
-                sourceRecordingId: recording.id,
-                type: .instrumental,
-                fileURL: result.instrumentalURL,
-                duration: result.duration
-            )
-            try await extractedAudioRepository.save(instrumentalAudio)
-
             return true
         } catch {
             state = .error(message: "保存に失敗しました: \(error.localizedDescription)")
@@ -122,7 +110,6 @@ public class VocalExtractionViewModel: ObservableObject {
         // Clean up temporary files if not saved
         if case .completed(let result) = state {
             try? FileManager.default.removeItem(at: result.vocalURL)
-            try? FileManager.default.removeItem(at: result.instrumentalURL)
         }
         state = .idle
     }
@@ -136,12 +123,6 @@ public class VocalExtractionViewModel: ObservableObject {
     public func playVocal() async {
         guard case .completed(let result) = state else { return }
         try? await audioPlayer.play(url: result.vocalURL)
-    }
-
-    /// Play instrumental track
-    public func playInstrumental() async {
-        guard case .completed(let result) = state else { return }
-        try? await audioPlayer.play(url: result.instrumentalURL)
     }
 
     /// Stop playback

@@ -4,12 +4,10 @@ import VocalisDomain
 /// Result of vocal extraction
 public struct VocalExtractionResult {
     public let vocalFileURL: URL
-    public let instrumentalFileURL: URL
     public let duration: Duration
 
-    public init(vocalFileURL: URL, instrumentalFileURL: URL, duration: Duration) {
+    public init(vocalFileURL: URL, duration: Duration) {
         self.vocalFileURL = vocalFileURL
-        self.instrumentalFileURL = instrumentalFileURL
         self.duration = duration
     }
 }
@@ -27,7 +25,7 @@ public protocol VocalExtractorProtocol {
     /// - Parameters:
     ///   - sourceURL: URL of the source audio file
     ///   - progressHandler: Called with progress updates (0.0 to 1.0)
-    /// - Returns: Extraction result containing URLs for vocal and instrumental tracks
+    /// - Returns: Extraction result containing URL for vocal track
     func extract(
         from sourceURL: URL,
         progressHandler: @escaping (Double, String) -> Void
@@ -35,7 +33,7 @@ public protocol VocalExtractorProtocol {
 }
 
 /// Mock implementation of vocal extractor
-/// This simply copies the source file as both vocal and instrumental tracks
+/// This simply copies the source file as the vocal track
 public class MockVocalExtractor: VocalExtractorProtocol {
 
     private let fileManager = FileManager.default
@@ -59,7 +57,7 @@ public class MockVocalExtractor: VocalExtractorProtocol {
         progressHandler(0.2, "音声を解析中...")
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        progressHandler(0.5, "ボーカルを分離中...")
+        progressHandler(0.5, "ボーカルを抽出中...")
         try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
         progressHandler(0.8, "出力ファイルを生成中...")
@@ -74,20 +72,16 @@ public class MockVocalExtractor: VocalExtractorProtocol {
             try fileManager.createDirectory(at: extractedDir, withIntermediateDirectories: true)
         }
 
-        // Generate unique filenames
+        // Generate unique filename
         let timestamp = Int(Date().timeIntervalSince1970)
         let sourceFileName = sourceURL.deletingPathExtension().lastPathComponent
         let fileExtension = sourceURL.pathExtension
 
         let vocalFileName = "\(sourceFileName)_vocal_\(timestamp).\(fileExtension)"
-        let instrumentalFileName = "\(sourceFileName)_instrumental_\(timestamp).\(fileExtension)"
-
         let vocalURL = extractedDir.appendingPathComponent(vocalFileName)
-        let instrumentalURL = extractedDir.appendingPathComponent(instrumentalFileName)
 
-        // Mock: Copy source file as both vocal and instrumental
+        // Mock: Copy source file as vocal
         try fileManager.copyItem(at: sourceURL, to: vocalURL)
-        try fileManager.copyItem(at: sourceURL, to: instrumentalURL)
 
         progressHandler(1.0, "完了")
 
@@ -96,7 +90,6 @@ public class MockVocalExtractor: VocalExtractorProtocol {
 
         return VocalExtractionResult(
             vocalFileURL: vocalURL,
-            instrumentalFileURL: instrumentalURL,
             duration: duration
         )
     }

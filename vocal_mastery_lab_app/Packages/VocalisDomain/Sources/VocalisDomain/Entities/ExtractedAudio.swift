@@ -1,6 +1,6 @@
 import Foundation
 
-/// Extracted audio entity representing a separated vocal or instrumental track
+/// Extracted audio entity representing a separated vocal track
 public struct ExtractedAudio: Equatable, Identifiable, Codable, Hashable {
     public let id: ExtractedAudioId
     public let sourceRecordingId: RecordingId

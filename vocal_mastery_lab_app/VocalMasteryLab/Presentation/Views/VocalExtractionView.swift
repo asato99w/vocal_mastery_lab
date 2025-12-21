@@ -87,7 +87,7 @@ public struct VocalExtractionView: View {
                 .font(.system(size: 60))
                 .foregroundColor(ColorPalette.primary)
 
-            Text("録音からボーカルと伴奏を分離します")
+            Text("録音からボーカルを抽出します")
                 .font(.body)
                 .foregroundColor(ColorPalette.text.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -140,12 +140,6 @@ public struct VocalExtractionView: View {
                     title: "ボーカル",
                     icon: "person.wave.2",
                     action: { Task { await viewModel.playVocal() } }
-                )
-
-                PreviewButton(
-                    title: "伴奏",
-                    icon: "guitars",
-                    action: { Task { await viewModel.playInstrumental() } }
                 )
 
                 Button("停止") {

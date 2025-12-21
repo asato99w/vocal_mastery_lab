@@ -45,7 +45,7 @@ Recording(未抽出)
 |----------|------|--------|
 | AnalysisView入力 | `ExtractedAudio` → `Recording + ExtractedAudio?` | 低 |
 | RecordingListView | メニュー条件緩和（未抽出でも分析可能に） | 低 |
-| トラック選択UI | 新規追加（ボーカル/伴奏/元音声） | 中 |
+| トラック選択UI | 新規追加（ボーカル/元音声） | 中 |
 | AnalysisViewModel | 両方の入力型に対応 | 低〜中 |
 
 **拡張性を確保する設計ポイント:**
@@ -112,7 +112,6 @@ extension ExtractedAudio: AnalyzableAudio {}
         │  プレビュー:           │            └────────────────────────┘
         │  ▶ 元の音声            │
         │  ▶ ボーカル            │
-        │  ▶ 伴奏                │
         │                        │
         │  [保存] [キャンセル]   │
         └────────────────────────┘
@@ -142,7 +141,7 @@ extension ExtractedAudio: AnalyzableAudio {}
 public struct ExtractedAudio: Identifiable, Codable, Equatable {
     public let id: UUID
     public let sourceRecordingId: RecordingId  // 元の録音への参照
-    public let type: ExtractionType            // vocal / instrumental
+    public let type: ExtractionType            // vocal
     public let fileURL: URL
     public let createdAt: Date
     public let duration: Duration
@@ -150,9 +149,10 @@ public struct ExtractedAudio: Identifiable, Codable, Equatable {
 
 public enum ExtractionType: String, Codable {
     case vocal
-    case instrumental
 }
 ```
+
+> **注記**: 伴奏抽出機能は未実装のため、ExtractionTypeはvocalのみ対応
 
 ### ExtractedAudioRepository プロトコル（新規）
 
