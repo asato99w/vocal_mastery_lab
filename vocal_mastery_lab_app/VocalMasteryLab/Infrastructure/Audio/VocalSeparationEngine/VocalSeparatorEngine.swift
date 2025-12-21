@@ -2,6 +2,9 @@ import Foundation
 import CoreML
 import Accelerate
 import AVFoundation
+import os.log
+
+private let logger = Logger(subsystem: "com.kazuasato.VocalMasteryLab", category: "VocalSeparatorEngine")
 
 /// Vocal separation engine using CoreML and STFT
 ///
@@ -57,10 +60,20 @@ final class VocalSeparatorEngine {
 
     init(modelURL: URL, configuration: ModelConfiguration = .default) throws {
         let compiledURL: URL
-        do {
-            compiledURL = try MLModel.compileModel(at: modelURL)
-        } catch {
-            throw SeparationError.modelLoadFailed(error.localizedDescription)
+
+        // Check if model is already compiled (.mlmodelc) or needs compilation (.mlpackage)
+        if modelURL.pathExtension == "mlmodelc" {
+            // Already compiled, use directly
+            compiledURL = modelURL
+            logger.info("📦 [MODEL] Using pre-compiled model: \(modelURL.lastPathComponent)")
+        } else {
+            // Needs compilation
+            logger.info("🔨 [MODEL] Compiling model: \(modelURL.lastPathComponent)")
+            do {
+                compiledURL = try MLModel.compileModel(at: modelURL)
+            } catch {
+                throw SeparationError.modelLoadFailed(error.localizedDescription)
+            }
         }
 
         let mlConfig = MLModelConfiguration()
@@ -68,6 +81,7 @@ final class VocalSeparatorEngine {
 
         do {
             self.model = try MLModel(contentsOf: compiledURL, configuration: mlConfig)
+            logger.info("✅ [MODEL] Model loaded successfully")
         } catch {
             throw SeparationError.modelLoadFailed(error.localizedDescription)
         }
@@ -86,6 +100,7 @@ final class VocalSeparatorEngine {
         audioURL: URL,
         progressHandler: ProgressHandler? = nil
     ) throws -> SeparationResult {
+        logger.info("🎵 [SEPARATION_START] Starting vocal separation")
 
         // 1. Load audio
         progressHandler?(0.1, "音声を読み込み中...")
@@ -93,13 +108,19 @@ final class VocalSeparatorEngine {
             from: audioURL,
             targetSampleRate: configuration.sampleRate
         )
+        logger.info("📥 [AUDIO_LOADED] channels=\(audioData.channelCount), frames=\(audioData.frameCount), sampleRate=\(audioData.sampleRate)")
 
         // 2. Convert to stereo if needed
         let stereoAudio = AudioProcessor.convertToStereo(audioData)
 
+        // Log audio stats
+        let leftStats = computeStats(stereoAudio.samples[0])
+        logger.info("📊 [LEFT_AUDIO_STATS] min=\(leftStats.min), max=\(leftStats.max), mean=\(leftStats.mean), rms=\(leftStats.rms)")
+
         // 3. Compute complex STFT (real + imag for CoreML input)
         progressHandler?(0.2, "音声を解析中...")
         let (leftComplexSTFT, rightComplexSTFT) = stftProcessor.computeComplexSTFT(audioData: stereoAudio)
+        logger.info("📈 [COMPLEX_STFT] freqBins=\(leftComplexSTFT.frequencyBins), timeFrames=\(leftComplexSTFT.timeFrames)")
 
         // Also compute magnitude/phase for mask application and iSTFT
         let (leftSTFT, _) = stftProcessor.computeSTFT(audioData: stereoAudio)
@@ -111,9 +132,19 @@ final class VocalSeparatorEngine {
             progressHandler: progressHandler
         )
 
+        // Log mask statistics
+        let maskStats = computeSpectrogramStats(vocalMask.magnitude)
+        logger.info("🎭 [VOCAL_MASK_STATS] min=\(maskStats.min), max=\(maskStats.max), mean=\(maskStats.mean)")
+
         // 5. Apply mask
         progressHandler?(0.9, "出力を生成中...")
         let vocalSpec = applyComplexMask(spectrogram: leftSTFT, mask: vocalMask)
+
+        // Log vocal spectrogram stats
+        let vocalSpecStats = computeSpectrogramStats(vocalSpec.magnitude)
+        let origSpecStats = computeSpectrogramStats(leftSTFT.magnitude)
+        logger.info("📊 [ORIG_SPEC_STATS] min=\(origSpecStats.min), max=\(origSpecStats.max), mean=\(origSpecStats.mean)")
+        logger.info("🎤 [VOCAL_SPEC_STATS] min=\(vocalSpecStats.min), max=\(vocalSpecStats.max), mean=\(vocalSpecStats.mean)")
 
         // 6. Compute iSTFT
         let vocals = stftProcessor.createAudioData(
@@ -123,6 +154,11 @@ final class VocalSeparatorEngine {
             rightPhase: vocalSpec.phase,
             sampleRate: configuration.sampleRate
         )
+
+        // Log output audio stats
+        let outputStats = computeStats(vocals.samples[0])
+        logger.info("🎵 [OUTPUT_AUDIO_STATS] min=\(outputStats.min), max=\(outputStats.max), mean=\(outputStats.mean), rms=\(outputStats.rms)")
+        logger.info("✅ [SEPARATION_COMPLETE] outputFrames=\(vocals.frameCount)")
 
         progressHandler?(1.0, "完了")
 
@@ -252,6 +288,10 @@ final class VocalSeparatorEngine {
     }
 
     private func predictChunk(_ input: MLMultiArray) throws -> MLMultiArray {
+        // Log input stats (sample first few values)
+        let inputStats = computeMLArrayStats(input)
+        logger.debug("🔢 [MODEL_INPUT] shape=\(input.shape), min=\(inputStats.min), max=\(inputStats.max), mean=\(inputStats.mean)")
+
         let inputProvider = try MLDictionaryFeatureProvider(dictionary: [
             "input_1": MLFeatureValue(multiArray: input)
         ])
@@ -261,6 +301,10 @@ final class VocalSeparatorEngine {
         guard let outputArray = output.featureValue(for: "var_992")?.multiArrayValue else {
             throw SeparationError.predictionFailed("Failed to get output")
         }
+
+        // Log output stats
+        let outputStats = computeMLArrayStats(outputArray)
+        logger.debug("🔢 [MODEL_OUTPUT] shape=\(outputArray.shape), min=\(outputStats.min), max=\(outputStats.max), mean=\(outputStats.mean)")
 
         return outputArray
     }
@@ -336,5 +380,57 @@ final class VocalSeparatorEngine {
             magnitude: maskedMagnitude,
             phase: maskedPhase
         )
+    }
+
+    // MARK: - Statistics Helpers
+
+    private struct Stats {
+        let min: Float
+        let max: Float
+        let mean: Float
+        let rms: Float
+    }
+
+    private func computeStats(_ samples: [Float]) -> Stats {
+        guard !samples.isEmpty else {
+            return Stats(min: 0, max: 0, mean: 0, rms: 0)
+        }
+        let minVal = samples.min() ?? 0
+        let maxVal = samples.max() ?? 0
+        let sum = samples.reduce(0, +)
+        let mean = sum / Float(samples.count)
+        let sumSquared = samples.reduce(0) { $0 + $1 * $1 }
+        let rms = sqrtf(sumSquared / Float(samples.count))
+        return Stats(min: minVal, max: maxVal, mean: mean, rms: rms)
+    }
+
+    private func computeSpectrogramStats(_ spectrogram: [[Float]]) -> Stats {
+        var allValues: [Float] = []
+        for bin in spectrogram {
+            allValues.append(contentsOf: bin)
+        }
+        return computeStats(allValues)
+    }
+
+    private func computeMLArrayStats(_ array: MLMultiArray) -> Stats {
+        let count = array.count
+        guard count > 0 else {
+            return Stats(min: 0, max: 0, mean: 0, rms: 0)
+        }
+
+        var minVal: Float = .greatestFiniteMagnitude
+        var maxVal: Float = -.greatestFiniteMagnitude
+        var sum: Float = 0
+
+        let ptr = array.dataPointer.assumingMemoryBound(to: Float.self)
+        for i in 0..<count {
+            let val = ptr[i]
+            minVal = Swift.min(minVal, val)
+            maxVal = Swift.max(maxVal, val)
+            sum += val
+        }
+
+        let mean = sum / Float(count)
+        return Stats(min: minVal, max: maxVal, mean: mean, rms: 0)
     }
 }

@@ -103,8 +103,15 @@ final class VocalSeparatorEngineTests: XCTestCase {
 
     func testSeparate_withRealModel_producesOutput() throws {
         // This test requires the actual CoreML model
-        // Skip if model is not available in test bundle
-        guard let modelURL = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") else {
+        // Try compiled model first, then package
+        var modelURL: URL?
+        if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlmodelc") {
+            modelURL = url
+        } else if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+            modelURL = url
+        }
+
+        guard let modelURL = modelURL else {
             throw XCTSkip("CoreML model not available in test bundle")
         }
 
@@ -139,7 +146,15 @@ final class VocalSeparatorEngineTests: XCTestCase {
     }
 
     func testSave_withResult_createsFile() throws {
-        guard let modelURL = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") else {
+        // Try compiled model first, then package
+        var modelURL: URL?
+        if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlmodelc") {
+            modelURL = url
+        } else if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+            modelURL = url
+        }
+
+        guard let modelURL = modelURL else {
             throw XCTSkip("CoreML model not available in test bundle")
         }
 
@@ -163,7 +178,133 @@ final class VocalSeparatorEngineTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
     }
 
+    // MARK: - Diagnostic Tests
+
+    /// Test that verifies vocal separation actually changes the audio
+    /// This test checks that the output is different from the input
+    func testSeparate_outputDiffersFromInput() throws {
+        // Try compiled model first, then package
+        var modelURL: URL?
+        if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlmodelc") {
+            modelURL = url
+        } else if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+            modelURL = url
+        }
+
+        guard let modelURL = modelURL else {
+            throw XCTSkip("CoreML model not available in test bundle")
+        }
+
+        // Create test audio - mix of two frequencies to simulate vocals + accompaniment
+        let sampleRate = 44100.0
+        let duration = 1.0
+        let sampleCount = Int(sampleRate * duration)
+        var samples = [Float](repeating: 0, count: sampleCount)
+
+        // Mix 440Hz (A4) + 880Hz (A5) - simulates a more complex signal
+        for i in 0..<sampleCount {
+            let t = Double(i) / sampleRate
+            let vocal = Float(sin(2 * .pi * 440 * t) * 0.7)  // Simulated "vocal"
+            let accompaniment = Float(sin(2 * .pi * 880 * t) * 0.3)  // Simulated accompaniment
+            samples[i] = vocal + accompaniment
+        }
+
+        // Save test audio
+        let audioURL = tempDirectory.appendingPathComponent("test_mixed.wav")
+        let audioData = AudioProcessor.AudioData(
+            samples: [samples, samples],
+            sampleRate: sampleRate,
+            frameCount: samples.count
+        )
+        try AudioProcessor.saveAudio(audioData, to: audioURL)
+
+        // Calculate input RMS
+        let inputRMS = calculateRMS(samples)
+        print("📊 [DIAGNOSTIC] Input RMS: \(inputRMS)")
+
+        // Run separation
+        let engine = try VocalSeparatorEngine(modelURL: modelURL)
+        let result = try engine.separate(audioURL: audioURL, progressHandler: nil)
+
+        // Calculate output RMS
+        let outputSamples = result.vocals.samples[0]
+        let outputRMS = calculateRMS(outputSamples)
+        print("📊 [DIAGNOSTIC] Output RMS: \(outputRMS)")
+
+        // Calculate correlation between input and output
+        let minLength = min(samples.count, outputSamples.count)
+        let inputSlice = Array(samples[0..<minLength])
+        let outputSlice = Array(outputSamples[0..<minLength])
+        let correlation = calculateCorrelation(inputSlice, outputSlice)
+        print("📊 [DIAGNOSTIC] Correlation: \(correlation)")
+
+        // Calculate difference
+        var sumDiff: Float = 0
+        for i in 0..<minLength {
+            sumDiff += abs(inputSlice[i] - outputSlice[i])
+        }
+        let avgDiff = sumDiff / Float(minLength)
+
+        // Write diagnostic output to file for retrieval
+        let diagnosticOutput = """
+        ===== VOCAL SEPARATION DIAGNOSTIC =====
+        Input RMS: \(inputRMS)
+        Output RMS: \(outputRMS)
+        Correlation: \(correlation)
+        Average Difference: \(avgDiff)
+        Input samples: \(samples.count)
+        Output samples: \(outputSamples.count)
+        =======================================
+        """
+        let diagnosticURL = tempDirectory.appendingPathComponent("diagnostic.txt")
+        try? diagnosticOutput.write(to: diagnosticURL, atomically: true, encoding: .utf8)
+        print(diagnosticOutput)
+
+        // Also add as XCTest attachment
+        let attachment = XCTAttachment(string: diagnosticOutput)
+        attachment.name = "Separation Diagnostics"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        // Assert that output is different from input
+        // If correlation is very high (> 0.99), the separation isn't working
+        XCTAssertLessThan(
+            correlation, 0.99,
+            "Output should be different from input (correlation=\(correlation)). " +
+            "High correlation indicates separation is not working."
+        )
+
+        // Also check that output has some signal (not silence)
+        XCTAssertGreaterThan(
+            outputRMS, 0.01,
+            "Output should have some signal (RMS=\(outputRMS))"
+        )
+    }
+
     // MARK: - Helper Methods
+
+    private func calculateRMS(_ samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        let sumSquared = samples.reduce(0) { $0 + $1 * $1 }
+        return sqrtf(sumSquared / Float(samples.count))
+    }
+
+    private func calculateCorrelation(_ a: [Float], _ b: [Float]) -> Float {
+        guard a.count == b.count, !a.isEmpty else { return 0 }
+
+        let n = Float(a.count)
+        let sumA = a.reduce(0, +)
+        let sumB = b.reduce(0, +)
+        let sumAB = zip(a, b).reduce(0 as Float) { $0 + $1.0 * $1.1 }
+        let sumA2 = a.reduce(0 as Float) { $0 + $1 * $1 }
+        let sumB2 = b.reduce(0 as Float) { $0 + $1 * $1 }
+
+        let numerator = n * sumAB - sumA * sumB
+        let denominator = sqrtf((n * sumA2 - sumA * sumA) * (n * sumB2 - sumB * sumB))
+
+        guard denominator > 0 else { return 0 }
+        return numerator / denominator
+    }
 
     private func generateSineWave(frequency: Double, sampleRate: Double, duration: Double) -> [Float] {
         let sampleCount = Int(sampleRate * duration)
