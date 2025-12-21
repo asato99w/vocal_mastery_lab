@@ -101,6 +101,7 @@ final class VocalSeparatorEngine {
         progressHandler: ProgressHandler? = nil
     ) throws -> SeparationResult {
         logger.info("🎵 [SEPARATION_START] Starting vocal separation")
+        logger.info("📂 [INPUT_FILE] \(audioURL.lastPathComponent)")
 
         // 1. Load audio
         progressHandler?(0.1, "音声を読み込み中...")
@@ -113,22 +114,23 @@ final class VocalSeparatorEngine {
         // 2. Convert to stereo if needed
         let stereoAudio = AudioProcessor.convertToStereo(audioData)
 
-        // Log audio stats
+        // Log audio stats (POC compatible format)
         let leftStats = computeStats(stereoAudio.samples[0])
         logger.info("📊 [LEFT_AUDIO_STATS] min=\(leftStats.min), max=\(leftStats.max), mean=\(leftStats.mean), rms=\(leftStats.rms)")
 
-        // 3. Compute complex STFT (real + imag for CoreML input)
+        // Log first 10 samples for debugging
+        let firstSamples = Array(stereoAudio.samples[0].prefix(10))
+        logger.info("🔢 [FIRST_10_SAMPLES] \(firstSamples)")
+
+        // 3. Compute STFT (magnitude + phase) - POC compatible format
         progressHandler?(0.2, "音声を解析中...")
-        let (leftComplexSTFT, rightComplexSTFT) = stftProcessor.computeComplexSTFT(audioData: stereoAudio)
-        logger.info("📈 [COMPLEX_STFT] freqBins=\(leftComplexSTFT.frequencyBins), timeFrames=\(leftComplexSTFT.timeFrames)")
+        let (leftSTFT, rightSTFT) = stftProcessor.computeSTFT(audioData: stereoAudio)
+        logger.info("📈 [STFT] freqBins=\(leftSTFT.frequencyBins), timeFrames=\(leftSTFT.timeFrames)")
 
-        // Also compute magnitude/phase for mask application and iSTFT
-        let (leftSTFT, _) = stftProcessor.computeSTFT(audioData: stereoAudio)
-
-        // 4. CoreML inference with complex STFT input
+        // 4. CoreML inference with magnitude input (POC compatible)
         let vocalMask = try predictVocalMask(
-            leftComplexSTFT: leftComplexSTFT,
-            rightComplexSTFT: rightComplexSTFT,
+            leftSTFT: leftSTFT,
+            rightSTFT: rightSTFT,
             progressHandler: progressHandler
         )
 
@@ -173,27 +175,33 @@ final class VocalSeparatorEngine {
 
     // MARK: - Private Methods
 
+    /// CoreML inference with magnitude input (POC compatible format)
     private func predictVocalMask(
-        leftComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
-        rightComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
+        leftSTFT: STFTProcessorV2.SpectrogramData,
+        rightSTFT: STFTProcessorV2.SpectrogramData,
         progressHandler: ProgressHandler?
     ) throws -> STFTProcessorV2.SpectrogramData {
 
-        let timeFrames = leftComplexSTFT.timeFrames
-        let freqBins = min(leftComplexSTFT.frequencyBins, 2048)
+        // Reset chunk counter for debugging
+        chunkCounter = 0
+
+        let timeFrames = leftSTFT.timeFrames
+        let freqBins = min(leftSTFT.frequencyBins, 2048)
         let chunkSize = configuration.chunkSize
 
         let numChunks = (timeFrames + chunkSize - 1) / chunkSize
+        logger.info("🤖 [COREML_START] timeFrames=\(timeFrames), freqBins=\(freqBins), chunkSize=\(chunkSize), numChunks=\(numChunks)")
+
         var vocalMasks: [[Float]] = []
 
         for chunkIndex in 0..<numChunks {
             let startFrame = chunkIndex * chunkSize
             let endFrame = min((chunkIndex + 1) * chunkSize, timeFrames)
 
-            // Extract chunk with real/imag data
+            // Extract chunk with magnitude data (POC compatible)
             let chunk = extractChunk(
-                leftComplexSTFT: leftComplexSTFT,
-                rightComplexSTFT: rightComplexSTFT,
+                leftSTFT: leftSTFT,
+                rightSTFT: rightSTFT,
                 startFrame: startFrame,
                 endFrame: endFrame,
                 targetSize: chunkSize
@@ -215,8 +223,8 @@ final class VocalSeparatorEngine {
         // Reshape results
         let vocalMagnitude = reshape2D(vocalMasks, frequencyBins: freqBins)
 
-        // Create phase from original complex data (atan2(imag, real))
-        let vocalPhase = computePhase(leftComplexSTFT, targetBins: freqBins)
+        // Use original phase for iSTFT reconstruction
+        let vocalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)
 
         return STFTProcessorV2.SpectrogramData(
             magnitude: vocalMagnitude,
@@ -224,30 +232,10 @@ final class VocalSeparatorEngine {
         )
     }
 
-    /// Compute phase from complex STFT data
-    private func computePhase(_ complexSTFT: STFTProcessorV2.ComplexSpectrogramData, targetBins: Int) -> [[Float]] {
-        let timeFrames = complexSTFT.timeFrames
-        let actualBins = min(complexSTFT.frequencyBins, targetBins)
-
-        var phase: [[Float]] = Array(
-            repeating: Array(repeating: 0, count: timeFrames),
-            count: targetBins
-        )
-
-        for f in 0..<actualBins {
-            for t in 0..<timeFrames {
-                let re = complexSTFT.real[f][t]
-                let im = complexSTFT.imag[f][t]
-                phase[f][t] = atan2f(im, re)
-            }
-        }
-
-        return phase
-    }
-
+    /// Extract chunk for CoreML input (POC compatible: magnitude with zero imaginary)
     private func extractChunk(
-        leftComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
-        rightComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
+        leftSTFT: STFTProcessorV2.SpectrogramData,
+        rightSTFT: STFTProcessorV2.SpectrogramData,
         startFrame: Int,
         endFrame: Int,
         targetSize: Int
@@ -257,23 +245,24 @@ final class VocalSeparatorEngine {
         let actualSize = endFrame - startFrame
 
         // Create MLMultiArray [1, 4, 2048, 256]
-        // Channel layout: [Left Real, Left Imag, Right Real, Right Imag]
+        // POC compatible format: [Left Magnitude, 0, Right Magnitude, 0]
         let inputArray = try! MLMultiArray(
             shape: [1, 4, freqBins, targetSize] as [NSNumber],
             dataType: .float32
         )
 
-        // Copy real and imaginary data properly
+        // Copy magnitude data (POC compatible: imaginary channels are zero)
         for t in 0..<targetSize {
             for f in 0..<freqBins {
-                if t < actualSize && f < leftComplexSTFT.frequencyBins {
-                    // Left channel - real and imaginary
-                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftComplexSTFT.real[f][startFrame + t])
-                    inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftComplexSTFT.imag[f][startFrame + t])
-
-                    // Right channel - real and imaginary
-                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightComplexSTFT.real[f][startFrame + t])
-                    inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightComplexSTFT.imag[f][startFrame + t])
+                if t < actualSize && f < leftSTFT.frequencyBins {
+                    // Channel 0: Left magnitude
+                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftSTFT.magnitude[f][startFrame + t])
+                    // Channel 1: Left imaginary = 0 (POC compatible)
+                    inputArray[[0, 1, f, t] as [NSNumber]] = 0
+                    // Channel 2: Right magnitude (same as left in POC)
+                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: leftSTFT.magnitude[f][startFrame + t])
+                    // Channel 3: Right imaginary = 0 (POC compatible)
+                    inputArray[[0, 3, f, t] as [NSNumber]] = 0
                 } else {
                     // Zero padding for out-of-bounds
                     inputArray[[0, 0, f, t] as [NSNumber]] = 0
@@ -287,10 +276,24 @@ final class VocalSeparatorEngine {
         return inputArray
     }
 
+    private var chunkCounter = 0
+
     private func predictChunk(_ input: MLMultiArray) throws -> MLMultiArray {
-        // Log input stats (sample first few values)
+        chunkCounter += 1
+
+        // Log input stats (sample first few values) - POC compatible format
         let inputStats = computeMLArrayStats(input)
-        logger.debug("🔢 [MODEL_INPUT] shape=\(input.shape), min=\(inputStats.min), max=\(inputStats.max), mean=\(inputStats.mean)")
+        if self.chunkCounter <= 3 {
+            logger.info("🔢 [MODEL_INPUT] chunk=\(self.chunkCounter), shape=\(input.shape), min=\(inputStats.min), max=\(inputStats.max), mean=\(inputStats.mean)")
+
+            // Sample first channel values for debugging
+            var sampleValues: [Float] = []
+            for f in 0..<min(5, 2048) {
+                let value = input[[0, 0, f, 0] as [NSNumber]].floatValue
+                sampleValues.append(value)
+            }
+            logger.info("🔢 [INPUT_CH0_SAMPLE] first 5 freq bins: \(sampleValues)")
+        }
 
         let inputProvider = try MLDictionaryFeatureProvider(dictionary: [
             "input_1": MLFeatureValue(multiArray: input)
@@ -302,9 +305,21 @@ final class VocalSeparatorEngine {
             throw SeparationError.predictionFailed("Failed to get output")
         }
 
-        // Log output stats
+        // Log output stats - POC compatible format
         let outputStats = computeMLArrayStats(outputArray)
-        logger.debug("🔢 [MODEL_OUTPUT] shape=\(outputArray.shape), min=\(outputStats.min), max=\(outputStats.max), mean=\(outputStats.mean)")
+        if self.chunkCounter <= 3 {
+            logger.info("🔢 [MODEL_OUTPUT] chunk=\(self.chunkCounter), shape=\(outputArray.shape), min=\(outputStats.min), max=\(outputStats.max), mean=\(outputStats.mean)")
+
+            // Sample output channel values for debugging
+            for channel in 0..<4 {
+                var sampleValues: [Float] = []
+                for f in 0..<min(5, 2048) {
+                    let value = outputArray[[0, channel, f, 0] as [NSNumber]].floatValue
+                    sampleValues.append(value)
+                }
+                logger.info("🔢 [OUTPUT_CH\(channel)_SAMPLE] first 5 freq bins: \(sampleValues)")
+            }
+        }
 
         return outputArray
     }
@@ -319,6 +334,15 @@ final class VocalSeparatorEngine {
                 frame.append(value)
             }
             mask.append(frame)
+        }
+
+        // DEBUG: Log mask statistics (POC compatible)
+        if mask.count > 0 && mask[0].count > 0 && chunkCounter <= 3 {
+            let firstValue = mask[0][0]
+            let avgValue = mask[0].reduce(0, +) / Float(mask[0].count)
+            let maxValue = mask[0].max() ?? 0
+            let minValue = mask[0].min() ?? 0
+            logger.info("🎭 [MASK_CH\(channel)] first=\(firstValue), avg=\(avgValue), min=\(minValue), max=\(maxValue)")
         }
 
         return mask
