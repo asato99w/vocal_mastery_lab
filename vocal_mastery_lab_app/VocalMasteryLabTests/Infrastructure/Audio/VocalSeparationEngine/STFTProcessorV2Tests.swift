@@ -181,6 +181,82 @@ final class STFTProcessorV2Tests: XCTestCase {
         XCTAssertEqual(leftSTFT.frequencyBins, rightSTFT.frequencyBins)
     }
 
+    // MARK: - ComputeComplexSTFT Tests
+
+    func testComputeComplexSTFT_returnsCorrectShape() {
+        let audio = generateSineWave(frequency: 440.0, sampleRate: 44100.0, duration: 0.5)
+
+        let complexSTFT = sut.computeComplexSTFT(audio: audio)
+
+        XCTAssertGreaterThan(complexSTFT.timeFrames, 0)
+        XCTAssertEqual(complexSTFT.frequencyBins, sut.frequencyBins)
+        XCTAssertEqual(complexSTFT.real.count, complexSTFT.frequencyBins)
+        XCTAssertEqual(complexSTFT.imag.count, complexSTFT.frequencyBins)
+    }
+
+    func testComputeComplexSTFT_realImagMatchMagnitudePhase() {
+        let audio = generateSineWave(frequency: 440.0, sampleRate: 44100.0, duration: 0.5)
+
+        let complexSTFT = sut.computeComplexSTFT(audio: audio)
+        let spectrogram = sut.computeSTFT(audio: audio)
+
+        // Verify: magnitude = sqrt(real² + imag²)
+        // Verify: phase = atan2(imag, real)
+        for binIdx in 0..<min(10, complexSTFT.frequencyBins) {
+            for frameIdx in 0..<min(10, complexSTFT.timeFrames) {
+                let re = complexSTFT.real[binIdx][frameIdx]
+                let im = complexSTFT.imag[binIdx][frameIdx]
+
+                let calculatedMag = sqrtf(re * re + im * im)
+                let calculatedPhase = atan2f(im, re)
+
+                let expectedMag = spectrogram.magnitude[binIdx][frameIdx]
+                let expectedPhase = spectrogram.phase[binIdx][frameIdx]
+
+                XCTAssertEqual(calculatedMag, expectedMag, accuracy: 1e-5,
+                              "Magnitude mismatch at [\(binIdx)][\(frameIdx)]")
+                XCTAssertEqual(calculatedPhase, expectedPhase, accuracy: 1e-5,
+                              "Phase mismatch at [\(binIdx)][\(frameIdx)]")
+            }
+        }
+    }
+
+    func testComputeComplexSTFT_withStereoAudioData_processesBothChannels() {
+        let sampleRate = 44100.0
+        let leftChannel = generateSineWave(frequency: 440.0, sampleRate: sampleRate, duration: 0.5)
+        let rightChannel = generateSineWave(frequency: 880.0, sampleRate: sampleRate, duration: 0.5)
+
+        let audioData = AudioProcessor.AudioData(
+            samples: [leftChannel, rightChannel],
+            sampleRate: sampleRate,
+            frameCount: leftChannel.count
+        )
+
+        let (leftSTFT, rightSTFT) = sut.computeComplexSTFT(audioData: audioData)
+
+        XCTAssertEqual(leftSTFT.timeFrames, rightSTFT.timeFrames)
+        XCTAssertEqual(leftSTFT.frequencyBins, rightSTFT.frequencyBins)
+        XCTAssertEqual(leftSTFT.real.count, leftSTFT.frequencyBins)
+        XCTAssertEqual(rightSTFT.imag.count, rightSTFT.frequencyBins)
+    }
+
+    func testComputeComplexSTFT_sineWave_hasNonZeroImaginary() {
+        // A sine wave should have non-zero imaginary components
+        let audio = generateSineWave(frequency: 440.0, sampleRate: 44100.0, duration: 0.5)
+
+        let complexSTFT = sut.computeComplexSTFT(audio: audio)
+
+        // Find max imaginary value - should be non-zero for a sine wave
+        var maxImag: Float = 0
+        for bin in complexSTFT.imag {
+            for value in bin {
+                maxImag = max(maxImag, abs(value))
+            }
+        }
+
+        XCTAssertGreaterThan(maxImag, 0.1, "Sine wave should have significant imaginary components")
+    }
+
     // MARK: - CreateAudioData Tests
 
     func testCreateAudioData_producesValidOutput() {
