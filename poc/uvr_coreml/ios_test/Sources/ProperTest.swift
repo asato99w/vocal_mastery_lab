@@ -10,10 +10,12 @@ func runProperSeparationTest() throws {
     print("🎵 本格的音源分離テスト (VocalSeparatorComplete)")
     print(String(repeating: "=", count: 80))
 
-    // パス設定
-    let modelPath = URL(fileURLWithPath: "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml/models/coreml/UVR-MDX-NET-Inst_Main.mlpackage")
-    let inputPath = URL(fileURLWithPath: "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml/tests/output/hollow_crown_from_flac.wav")
-    let outputDir = URL(fileURLWithPath: "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml/tests/swift_output")
+    // パス設定（カレントディレクトリから相対パス）
+    let currentDir = FileManager.default.currentDirectoryPath
+    let baseURL = URL(fileURLWithPath: currentDir)
+    let modelPath = baseURL.appendingPathComponent("models/coreml/UVR-MDX-NET-Inst_Main.mlpackage")
+    let inputPath = baseURL.appendingPathComponent("tests/output/hollow_crown_from_flac.wav")
+    let outputDir = baseURL.appendingPathComponent("tests/swift_output")
 
     try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
 
