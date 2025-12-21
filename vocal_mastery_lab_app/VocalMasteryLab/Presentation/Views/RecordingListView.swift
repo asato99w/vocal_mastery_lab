@@ -6,6 +6,7 @@ public struct RecordingListView: View {
     @StateObject private var viewModel: RecordingListViewModel
     @StateObject private var localization = LocalizationManager.shared
     @State private var selectedRecording: Recording?
+    @State private var extractingRecording: Recording?
     @State private var editingRecording: Recording?
     @State private var editingTitle: String = ""
     @State private var showingRenameAlert: Bool = false
@@ -14,15 +15,21 @@ public struct RecordingListView: View {
 
     private let audioPlayer: AudioPlayerProtocol
     private let analyzeRecordingUseCase: AnalyzeRecordingUseCase
+    private let extractedAudioRepository: ExtractedAudioRepositoryProtocol
+    private let vocalExtractor: VocalExtractorProtocol
 
     public init(
         viewModel: RecordingListViewModel,
         audioPlayer: AudioPlayerProtocol,
-        analyzeRecordingUseCase: AnalyzeRecordingUseCase
+        analyzeRecordingUseCase: AnalyzeRecordingUseCase,
+        extractedAudioRepository: ExtractedAudioRepositoryProtocol,
+        vocalExtractor: VocalExtractorProtocol
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.audioPlayer = audioPlayer
         self.analyzeRecordingUseCase = analyzeRecordingUseCase
+        self.extractedAudioRepository = extractedAudioRepository
+        self.vocalExtractor = vocalExtractor
     }
 
     public var body: some View {
@@ -49,6 +56,16 @@ public struct RecordingListView: View {
                 recording: recording,
                 audioPlayer: audioPlayer,
                 analyzeRecordingUseCase: analyzeRecordingUseCase
+            )
+        }
+        .navigationDestination(item: $extractingRecording) { recording in
+            VocalExtractionView(
+                viewModel: VocalExtractionViewModel(
+                    recording: recording,
+                    extractor: vocalExtractor,
+                    extractedAudioRepository: extractedAudioRepository,
+                    audioPlayer: audioPlayer
+                )
             )
         }
         .task {
@@ -140,8 +157,7 @@ public struct RecordingListView: View {
                     recording: recording,
                     isSelected: viewModel.selectedRecording?.id == recording.id,
                     isPlaying: viewModel.playingRecordingId == recording.id,
-                    hasCachedData: analyzeRecordingUseCase.hasCachedData(for: recording),
-                    selectedRecording: $selectedRecording,
+                    isExtracted: viewModel.hasExtractedAudio(recording),
                     onTap: {
                         Task {
                             await viewModel.selectAndPlay(recording)
@@ -149,6 +165,18 @@ public struct RecordingListView: View {
                     },
                     onAnalyze: {
                         selectedRecording = recording
+                    },
+                    onExtract: {
+                        extractingRecording = recording
+                    },
+                    onRename: {
+                        editingRecording = recording
+                        editingTitle = recording.title ?? ""
+                        showingRenameAlert = true
+                    },
+                    onDelete: {
+                        deletingRecording = recording
+                        showingDeleteAlert = true
                     }
                 )
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -159,18 +187,6 @@ public struct RecordingListView: View {
                         Label("delete".localized, systemImage: "trash")
                     }
                     .accessibilityIdentifier("DeleteRecordingButton_\(recording.id.value.uuidString)")
-                }
-                .swipeActions(edge: .leading) {
-                    Button {
-                        editingRecording = recording
-                        // Show current title in text field
-                        editingTitle = recording.title ?? ""
-                        showingRenameAlert = true
-                    } label: {
-                        Label("recording.rename".localized, systemImage: "pencil")
-                    }
-                    .tint(.blue)
-                    .accessibilityIdentifier("RenameRecordingButton_\(recording.id.value.uuidString)")
                 }
             }
         }
@@ -195,10 +211,12 @@ private struct RecordingRow: View {
     let recording: Recording
     let isSelected: Bool
     let isPlaying: Bool
-    let hasCachedData: Bool
-    @Binding var selectedRecording: Recording?
+    let isExtracted: Bool
     let onTap: () -> Void
     let onAnalyze: () -> Void
+    let onExtract: () -> Void
+    let onRename: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -208,13 +226,11 @@ private struct RecordingRow: View {
                 .frame(width: 4)
 
             // Main content - tappable area for playback
-            VStack(alignment: .leading, spacing: 8) {
-                // Recording name (title > default)
+            VStack(alignment: .leading, spacing: 4) {
                 Text(recording.title ?? "recording.title".localized)
                     .font(.headline)
                     .foregroundColor(ColorPalette.text)
 
-                // Date and duration on same line
                 HStack {
                     Text(recording.formattedDate)
                         .font(.caption)
@@ -227,8 +243,6 @@ private struct RecordingRow: View {
                     Text(formatTime(recording.duration.seconds))
                         .font(.caption)
                         .foregroundColor(ColorPalette.text.opacity(0.6))
-
-                    Spacer()
                 }
             }
             .padding(.vertical, 12)
@@ -238,23 +252,55 @@ private struct RecordingRow: View {
                 onTap()
             }
 
-            // Analysis button - separated from onTapGesture to prevent gesture conflict
-            Button(action: onAnalyze) {
-                HStack(spacing: 4) {
-                    Image(systemName: "waveform.path.ecg")
-                        .font(.system(size: 14, weight: .medium))
+            Spacer()
+
+            // Menu button
+            Menu {
+                // Play
+                Button {
+                    onTap()
+                } label: {
+                    Label("再生", systemImage: "play.fill")
                 }
-                .foregroundColor(hasCachedData ? .white : ColorPalette.text)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(hasCachedData ? ColorPalette.primary : ColorPalette.alertActive)
-                )
+
+                Divider()
+
+                // Analysis - disabled if not extracted
+                Button {
+                    onAnalyze()
+                } label: {
+                    Label("分析", systemImage: "chart.xyaxis.line")
+                }
+                .disabled(!isExtracted)
+
+                // Extract/Re-extract - always enabled
+                Button {
+                    onExtract()
+                } label: {
+                    Label(isExtracted ? "再抽出" : "ボーカル抽出", systemImage: "waveform.path.ecg")
+                }
+
+                Divider()
+
+                Button {
+                    onRename()
+                } label: {
+                    Label("recording.rename".localized, systemImage: "pencil")
+                }
+
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("delete".localized, systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(ColorPalette.text.opacity(0.6))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(ScaleButtonStyle())
-            .accessibilityIdentifier("AnalysisNavigationLink_\(hasCachedData ? "cached" : "uncached")_\(recording.id.value.uuidString)")
-            .padding(.trailing, 12)
+            .accessibilityIdentifier("MenuButton_\(recording.id.value.uuidString)")
         }
         .background(
             RoundedRectangle(cornerRadius: 8)

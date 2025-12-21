@@ -79,6 +79,14 @@ public class DependencyContainer {
         UserDefaultsAudioSettingsRepository()
     }()
 
+    public lazy var extractedAudioRepository: ExtractedAudioRepositoryProtocol = {
+        FileExtractedAudioRepository()
+    }()
+
+    public lazy var vocalExtractor: VocalExtractorProtocol = {
+        MockVocalExtractor()
+    }()
+
     // MARK: - Application Layer
 
     // Domain Services

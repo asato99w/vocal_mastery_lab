@@ -55,10 +55,13 @@ public struct RecordingView: View {
                 NavigationLink(destination: RecordingListView(
                     viewModel: RecordingListViewModel(
                         recordingRepository: DependencyContainer.shared.recordingRepository,
+                        extractedAudioRepository: DependencyContainer.shared.extractedAudioRepository,
                         audioPlayer: DependencyContainer.shared.audioPlayer
                     ),
                     audioPlayer: DependencyContainer.shared.audioPlayer,
-                    analyzeRecordingUseCase: DependencyContainer.shared.analyzeRecordingUseCase
+                    analyzeRecordingUseCase: DependencyContainer.shared.analyzeRecordingUseCase,
+                    extractedAudioRepository: DependencyContainer.shared.extractedAudioRepository,
+                    vocalExtractor: DependencyContainer.shared.vocalExtractor
                 )) {
                     HStack(spacing: 4) {
                         Image(systemName: "list.bullet")

@@ -12,17 +12,21 @@ public class RecordingListViewModel: ObservableObject {
     @Published public private(set) var currentTime: Double = 0.0
     @Published public private(set) var currentPlaybackPosition: [RecordingId: TimeInterval] = [:]
     @Published public private(set) var selectedRecording: Recording?
+    @Published public private(set) var extractedRecordingIds: Set<RecordingId> = []
 
     private let recordingRepository: RecordingRepositoryProtocol
+    private let extractedAudioRepository: ExtractedAudioRepositoryProtocol
     private let audioPlayer: AudioPlayerProtocol
     private var positionTrackingTask: Task<Void, Never>?
     private var playbackFinishObserver: NSObjectProtocol?
 
     public init(
         recordingRepository: RecordingRepositoryProtocol,
+        extractedAudioRepository: ExtractedAudioRepositoryProtocol,
         audioPlayer: AudioPlayerProtocol
     ) {
         self.recordingRepository = recordingRepository
+        self.extractedAudioRepository = extractedAudioRepository
         self.audioPlayer = audioPlayer
 
         // Observe playback finish notification
@@ -59,11 +63,31 @@ public class RecordingListViewModel: ObservableObject {
 
         do {
             recordings = try await recordingRepository.findAll()
+            await loadExtractionStatus()
         } catch {
             errorMessage = error.localizedDescription
         }
 
         isLoading = false
+    }
+
+    /// Load extraction status for all recordings
+    private func loadExtractionStatus() async {
+        do {
+            let allExtracted = try await extractedAudioRepository.findAll()
+            var extractedIds = Set<RecordingId>()
+            for extracted in allExtracted {
+                extractedIds.insert(extracted.sourceRecordingId)
+            }
+            extractedRecordingIds = extractedIds
+        } catch {
+            // Silently ignore extraction status errors
+        }
+    }
+
+    /// Check if a recording has extracted audio
+    public func hasExtractedAudio(_ recording: Recording) -> Bool {
+        extractedRecordingIds.contains(recording.id)
     }
 
     /// Play a recording (assumes any previous playback is already stopped)
@@ -136,6 +160,9 @@ public class RecordingListViewModel: ObservableObject {
             if selectedRecording?.id == recording.id {
                 selectedRecording = nil
             }
+
+            // Delete associated extracted audio
+            try await extractedAudioRepository.deleteByRecording(recording.id)
 
             try await recordingRepository.delete(recording.id)
 
