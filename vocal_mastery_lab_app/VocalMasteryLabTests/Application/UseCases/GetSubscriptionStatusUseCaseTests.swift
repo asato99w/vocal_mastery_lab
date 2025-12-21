@@ -98,10 +98,11 @@ final class GetSubscriptionStatusUseCaseTests: XCTestCase {
         // When: Execute use case
         let result = try await useCase.execute()
 
-        // Then: Should have correct feature access
+        // Then: All features should be accessible (current policy: all free)
+        // Note: Test updated to reflect "all features free" policy
         XCTAssertTrue(result.hasAccessTo(.basicRecording))
         XCTAssertTrue(result.hasAccessTo(.spectrumVisualization))
-        XCTAssertFalse(result.hasAccessTo(.aiPitchSuggestions)) // Premium Plus only
+        XCTAssertTrue(result.hasAccessTo(.aiPitchSuggestions)) // Now accessible to all
     }
 
     func testExecuteReturnsStatusWithCorrectAdPolicy() async throws {

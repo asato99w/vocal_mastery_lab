@@ -55,16 +55,21 @@ public struct RecordingLimit {
 
     /// Get recording limit for subscription tier
     /// Single source of truth for both count and duration limits
+    /// Note: Currently all tiers have unlimited recording. Structure preserved for future paid plans.
     public static func forTier(_ tier: SubscriptionTier, configuration: Configuration = .production) -> RecordingLimit {
-        switch tier {
-        case .free:
-            return RecordingLimit(dailyCount: configuration.freeDailyCount, maxDuration: configuration.freeMaxDuration)
-        case .premium:
-            // Premium has unlimited daily count but limited duration
-            return RecordingLimit(dailyCount: nil, maxDuration: configuration.premiumMaxDuration)
-        case .premiumPlus:
-            return RecordingLimit(dailyCount: nil, maxDuration: nil) // Unlimited
-        }
+        // All tiers currently have unlimited recording
+        return RecordingLimit(dailyCount: nil, maxDuration: nil)
+
+        // Original implementation preserved for future paid plan:
+        // switch tier {
+        // case .free:
+        //     return RecordingLimit(dailyCount: configuration.freeDailyCount, maxDuration: configuration.freeMaxDuration)
+        // case .premium:
+        //     // Premium has unlimited daily count but limited duration
+        //     return RecordingLimit(dailyCount: nil, maxDuration: configuration.premiumMaxDuration)
+        // case .premiumPlus:
+        //     return RecordingLimit(dailyCount: nil, maxDuration: nil) // Unlimited
+        // }
     }
 
     /// Check if count is within limit

@@ -211,17 +211,18 @@ final class SubscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(hasAccess)
     }
 
-    func testHasAccessToFeatureReturnsFalseForRestrictedFeature() async {
+    func testHasAccessToFeatureReturnsTrueForFreeUser() async {
         // Given: Free tier (v2.0 user)
+        // Note: Test updated to reflect "all features free" policy
         let freeStatus = SubscriptionStatus.defaultFree(cohort: .v2_0)
         mockGetStatusUseCase.mockStatus = freeStatus
         await viewModel.loadStatus()
 
-        // When: Check access to pitch accuracy analysis (requires Premium)
+        // When: Check access to pitch accuracy analysis (was Premium, now free)
         let hasAccess = viewModel.hasAccessTo(.pitchAccuracyAnalysis)
 
-        // Then: Should not have access
-        XCTAssertFalse(hasAccess)
+        // Then: Should have access (current policy: all features free)
+        XCTAssertTrue(hasAccess, "Should have access (current policy: all free)")
     }
 
     func testHasAccessToFeatureReturnsTrueForGrandfatherUser() async {

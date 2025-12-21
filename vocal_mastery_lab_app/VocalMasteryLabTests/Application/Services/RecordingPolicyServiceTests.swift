@@ -34,23 +34,20 @@ final class RecordingPolicyServiceTests: XCTestCase {
         XCTAssertEqual(permission, .allowed)
     }
 
-    func testCanStartRecording_FreeUser_ExceedsDailyLimit_ReturnsDenied() async throws {
+    func testCanStartRecording_FreeUser_ExceedsDailyLimit_ReturnsAllowed() async throws {
         // Given: Free user exceeds daily limit
+        // Note: Test updated to reflect "all features free" policy - no limits
         let user = User(
             id: UserId(),
             subscriptionStatus: .defaultFree(cohort: .v2_0),
-            recordingStats: RecordingStats(todayCount: 5) // At limit (free = 5/day)
+            recordingStats: RecordingStats(todayCount: 5) // Was at limit, now unlimited
         )
 
         // When: Check if can start recording
         let permission = try await sut.canStartRecording(user: user)
 
-        // Then: Should be denied with daily limit reason
-        if case .denied(let reason) = permission {
-            XCTAssertEqual(reason, .dailyLimitExceeded)
-        } else {
-            XCTFail("Expected denied permission, got \(permission)")
-        }
+        // Then: Should be allowed (current policy: all free, unlimited recording)
+        XCTAssertEqual(permission, .allowed, "Should be allowed (current policy: unlimited recording)")
     }
 
     func testCanStartRecording_PremiumUser_WithinDailyLimit_ReturnsAllowed() async throws {
@@ -128,23 +125,14 @@ final class RecordingPolicyServiceTests: XCTestCase {
         XCTAssertNoThrow(try sut.validateDuration(duration, for: status))
     }
 
-    func testValidateDuration_FreeTier_Over30Seconds_ThrowsError() throws {
-        // Given: Free tier, 31 seconds duration
-        let duration = Duration(seconds: 31.0)
+    func testValidateDuration_FreeTier_AnyDuration_Succeeds() throws {
+        // Given: Free tier, any duration (current policy: unlimited)
+        // Note: Test updated to reflect "all features free" policy - no limits
+        let duration = Duration(seconds: 10000.0)
         let status = SubscriptionStatus.defaultFree(cohort: .v2_0)
 
-        // When/Then: Should throw duration limit exceeded error
-        XCTAssertThrowsError(try sut.validateDuration(duration, for: status)) { error in
-            guard let policyError = error as? RecordingPolicyError else {
-                XCTFail("Expected RecordingPolicyError, got \(error)")
-                return
-            }
-            if case .durationLimitExceeded(let limit) = policyError {
-                XCTAssertEqual(limit.seconds, 30.0)
-            } else {
-                XCTFail("Expected durationLimitExceeded error, got \(policyError)")
-            }
-        }
+        // When/Then: Should not throw (current policy: unlimited)
+        XCTAssertNoThrow(try sut.validateDuration(duration, for: status))
     }
 
     func testValidateDuration_PremiumTier_Under5Minutes_Succeeds() throws {
@@ -160,27 +148,18 @@ final class RecordingPolicyServiceTests: XCTestCase {
         XCTAssertNoThrow(try sut.validateDuration(duration, for: status))
     }
 
-    func testValidateDuration_PremiumTier_Over5Minutes_ThrowsError() throws {
-        // Given: Premium tier, 6 minutes duration
-        let duration = Duration(seconds: 360.0)
+    func testValidateDuration_PremiumTier_AnyDuration_Succeeds() throws {
+        // Given: Premium tier, any duration (current policy: unlimited)
+        // Note: Test updated to reflect "all features free" policy - no limits
+        let duration = Duration(seconds: 10000.0)
         let status = SubscriptionStatus(
             tier: .premium,
             cohort: .v2_0,
             isActive: true
         )
 
-        // When/Then: Should throw duration limit exceeded error
-        XCTAssertThrowsError(try sut.validateDuration(duration, for: status)) { error in
-            guard let policyError = error as? RecordingPolicyError else {
-                XCTFail("Expected RecordingPolicyError, got \(error)")
-                return
-            }
-            if case .durationLimitExceeded(let limit) = policyError {
-                XCTAssertEqual(limit.seconds, 300.0)
-            } else {
-                XCTFail("Expected durationLimitExceeded error, got \(policyError)")
-            }
-        }
+        // When/Then: Should not throw (current policy: unlimited)
+        XCTAssertNoThrow(try sut.validateDuration(duration, for: status))
     }
 
     func testValidateDuration_PremiumPlusTier_AnyDuration_Succeeds() throws {

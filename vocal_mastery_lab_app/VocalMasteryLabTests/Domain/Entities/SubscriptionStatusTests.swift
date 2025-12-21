@@ -30,19 +30,14 @@ final class SubscriptionStatusTests: XCTestCase {
         // Given: v2.0 free user
         let status = SubscriptionStatus.defaultFree(cohort: .v2_0)
 
-        // When/Then: Should have access to basic features only
-        XCTAssertTrue(status.hasAccessTo(.basicRecording))
-        XCTAssertTrue(status.hasAccessTo(.realtimePitchDetection))
-        XCTAssertTrue(status.hasAccessTo(.fiveToneScale))
-
-        // Should NOT have access to Premium features
-        XCTAssertFalse(status.hasAccessTo(.spectrumVisualization))
-        XCTAssertFalse(status.hasAccessTo(.pitchAccuracyAnalysis))
-        XCTAssertFalse(status.hasAccessTo(.unlimitedLocalStorage))
-
-        // Should NOT have access to Premium Plus features
-        XCTAssertFalse(status.hasAccessTo(.aiPitchSuggestions))
-        XCTAssertFalse(status.hasAccessTo(.cloudBackup))
+        // When/Then: All features are now free
+        // Note: Test updated to reflect current "all features free" policy
+        for feature in Feature.allCases {
+            XCTAssertTrue(
+                status.hasAccessTo(feature),
+                "All features should be accessible (current policy: all free)"
+            )
+        }
     }
 
     func testPremiumUserHasAccessToPremiumFeatures() {
@@ -54,15 +49,14 @@ final class SubscriptionStatusTests: XCTestCase {
             expirationDate: Date().addingTimeInterval(30 * 24 * 3600)
         )
 
-        // When/Then: Should have access to basic and Premium features
-        XCTAssertTrue(status.hasAccessTo(.basicRecording))
-        XCTAssertTrue(status.hasAccessTo(.spectrumVisualization))
-        XCTAssertTrue(status.hasAccessTo(.pitchAccuracyAnalysis))
-        XCTAssertTrue(status.hasAccessTo(.unlimitedLocalStorage))
-
-        // Should NOT have access to Premium Plus features
-        XCTAssertFalse(status.hasAccessTo(.aiPitchSuggestions))
-        XCTAssertFalse(status.hasAccessTo(.cloudBackup))
+        // When/Then: All features are now free (current policy)
+        // Note: Test updated to reflect "all features free" policy
+        for feature in Feature.allCases {
+            XCTAssertTrue(
+                status.hasAccessTo(feature),
+                "All features should be accessible (current policy: all free)"
+            )
+        }
     }
 
     func testPremiumPlusUserHasAccessToAllFeatures() {
@@ -92,10 +86,14 @@ final class SubscriptionStatusTests: XCTestCase {
             expirationDate: Date().addingTimeInterval(-24 * 3600) // Yesterday
         )
 
-        // When/Then: Should only have access to basic features
-        XCTAssertTrue(status.hasAccessTo(.basicRecording))
-        XCTAssertFalse(status.hasAccessTo(.spectrumVisualization))
-        XCTAssertFalse(status.hasAccessTo(.aiPitchSuggestions))
+        // When/Then: All features are still accessible (current policy: all free)
+        // Note: Test updated to reflect "all features free" policy
+        for feature in Feature.allCases {
+            XCTAssertTrue(
+                status.hasAccessTo(feature),
+                "All features should be accessible even when inactive (current policy: all free)"
+            )
+        }
     }
 
     // MARK: - Ad Policy Tests
@@ -241,11 +239,12 @@ final class SubscriptionStatusTests: XCTestCase {
         // When: Get accessible features
         let accessible = status.accessibleFeatures
 
-        // Then: Should only include basic features
-        XCTAssertEqual(accessible.count, 3)
-        XCTAssertTrue(accessible.contains(.basicRecording))
-        XCTAssertTrue(accessible.contains(.realtimePitchDetection))
-        XCTAssertTrue(accessible.contains(.fiveToneScale))
+        // Then: All features should be accessible (current policy: all free)
+        // Note: Test updated to reflect "all features free" policy
+        XCTAssertEqual(accessible.count, Feature.allCases.count)
+        for feature in Feature.allCases {
+            XCTAssertTrue(accessible.contains(feature))
+        }
     }
 
     func testLockedFeaturesListForFreeUser() {
@@ -255,10 +254,9 @@ final class SubscriptionStatusTests: XCTestCase {
         // When: Get locked features
         let locked = status.lockedFeatures
 
-        // Then: Should include all Premium and Premium Plus features
-        XCTAssertTrue(locked.contains(.spectrumVisualization))
-        XCTAssertTrue(locked.contains(.aiPitchSuggestions))
-        XCTAssertFalse(locked.contains(.basicRecording))
+        // Then: No features should be locked (current policy: all free)
+        // Note: Test updated to reflect "all features free" policy
+        XCTAssertTrue(locked.isEmpty, "No features should be locked when all features are free")
     }
 
     // MARK: - Codable Tests

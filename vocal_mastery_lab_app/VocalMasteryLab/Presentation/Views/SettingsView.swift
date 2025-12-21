@@ -9,14 +9,8 @@ public struct SettingsView: View {
 
     public var body: some View {
         Form {
-            // Subscription Section
-            Section("settings.subscription_section".localized) {
-                NavigationLink {
-                    SubscriptionManagementView(viewModel: subscriptionViewModel)
-                } label: {
-                    Label("settings.manage_subscription".localized, systemImage: "gear")
-                }
-            }
+            // Note: Subscription section hidden while all features are free
+            // Preserved for future paid plan restoration
 
             // Audio Settings Section
             Section("settings.audio_section".localized) {

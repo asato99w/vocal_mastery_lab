@@ -61,11 +61,8 @@ public struct HomeView: View {
 
                     Spacer()
 
-                    // Upgrade Banner for free users
-                    if subscriptionViewModel.currentStatus?.tier == .free {
-                        UpgradeBanner()
-                            .padding(.horizontal, 40)
-                    }
+                    // Note: Upgrade banner hidden while all features are free
+                    // Preserved for future paid plan restoration
 
                     // Debug button (only in debug builds) - unobtrusive
                     #if DEBUG

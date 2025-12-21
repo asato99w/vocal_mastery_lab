@@ -46,24 +46,29 @@ public struct SubscriptionStatus: Equatable, Codable {
     // MARK: - Feature Access
 
     /// Check if user has access to a specific feature
+    /// Note: Currently all features are free. Subscription structure is preserved for future use.
     public func hasAccessTo(_ feature: Feature) -> Bool {
-        // v1.0 users have access to all features (Grandfather clause)
-        if cohort.hasGrandfatherPrivileges {
-            return true
-        }
+        // All features are currently free
+        return true
 
-        // Free tier features are available to everyone
-        if feature.minimumTier == .free {
-            return true
-        }
-
-        // Premium and Premium Plus features require active subscription
-        guard isActive else {
-            return false
-        }
-
-        // Check if user's tier meets the feature's minimum required tier
-        return tier >= feature.minimumTier
+        // Original implementation preserved for future paid plan:
+        // // v1.0 users have access to all features (Grandfather clause)
+        // if cohort.hasGrandfatherPrivileges {
+        //     return true
+        // }
+        //
+        // // Free tier features are available to everyone
+        // if feature.minimumTier == .free {
+        //     return true
+        // }
+        //
+        // // Premium and Premium Plus features require active subscription
+        // guard isActive else {
+        //     return false
+        // }
+        //
+        // // Check if user's tier meets the feature's minimum required tier
+        // return tier >= feature.minimumTier
     }
 
     /// Get list of features user has access to
