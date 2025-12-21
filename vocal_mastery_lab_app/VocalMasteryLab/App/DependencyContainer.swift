@@ -84,7 +84,12 @@ public class DependencyContainer {
     }()
 
     public lazy var vocalExtractor: VocalExtractorProtocol = {
-        MockVocalExtractor()
+        // Try to load CoreML model from bundle
+        if let modelURL = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+            return CoreMLVocalExtractor(modelURL: modelURL)
+        }
+        // Fallback to mock if model not found
+        return MockVocalExtractor()
     }()
 
     // MARK: - Application Layer

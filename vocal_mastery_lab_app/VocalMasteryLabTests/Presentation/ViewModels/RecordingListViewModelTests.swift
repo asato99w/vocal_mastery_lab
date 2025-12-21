@@ -7,14 +7,17 @@ final class RecordingListViewModelTests: XCTestCase {
 
     var sut: RecordingListViewModel!
     var mockRepository: MockRecordingRepository!
+    var mockExtractedAudioRepository: MockExtractedAudioRepository!
     var mockAudioPlayer: MockAudioPlayer!
 
     override func setUp() {
         super.setUp()
         mockRepository = MockRecordingRepository()
+        mockExtractedAudioRepository = MockExtractedAudioRepository()
         mockAudioPlayer = MockAudioPlayer()
         sut = RecordingListViewModel(
             recordingRepository: mockRepository,
+            extractedAudioRepository: mockExtractedAudioRepository,
             audioPlayer: mockAudioPlayer
         )
     }
@@ -22,6 +25,7 @@ final class RecordingListViewModelTests: XCTestCase {
     override func tearDown() {
         sut = nil
         mockAudioPlayer = nil
+        mockExtractedAudioRepository = nil
         mockRepository = nil
         super.tearDown()
     }
