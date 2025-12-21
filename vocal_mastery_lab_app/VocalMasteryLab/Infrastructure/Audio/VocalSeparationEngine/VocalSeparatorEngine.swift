@@ -97,14 +97,17 @@ final class VocalSeparatorEngine {
         // 2. Convert to stereo if needed
         let stereoAudio = AudioProcessor.convertToStereo(audioData)
 
-        // 3. Compute STFT
+        // 3. Compute complex STFT (real + imag for CoreML input)
         progressHandler?(0.2, "音声を解析中...")
-        let (leftSTFT, rightSTFT) = stftProcessor.computeSTFT(audioData: stereoAudio)
+        let (leftComplexSTFT, rightComplexSTFT) = stftProcessor.computeComplexSTFT(audioData: stereoAudio)
 
-        // 4. CoreML inference
+        // Also compute magnitude/phase for mask application and iSTFT
+        let (leftSTFT, _) = stftProcessor.computeSTFT(audioData: stereoAudio)
+
+        // 4. CoreML inference with complex STFT input
         let vocalMask = try predictVocalMask(
-            leftSTFT: leftSTFT,
-            rightSTFT: rightSTFT,
+            leftComplexSTFT: leftComplexSTFT,
+            rightComplexSTFT: rightComplexSTFT,
             progressHandler: progressHandler
         )
 
@@ -135,13 +138,13 @@ final class VocalSeparatorEngine {
     // MARK: - Private Methods
 
     private func predictVocalMask(
-        leftSTFT: STFTProcessorV2.SpectrogramData,
-        rightSTFT: STFTProcessorV2.SpectrogramData,
+        leftComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
+        rightComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
         progressHandler: ProgressHandler?
     ) throws -> STFTProcessorV2.SpectrogramData {
 
-        let timeFrames = leftSTFT.timeFrames
-        let freqBins = min(leftSTFT.frequencyBins, 2048)
+        let timeFrames = leftComplexSTFT.timeFrames
+        let freqBins = min(leftComplexSTFT.frequencyBins, 2048)
         let chunkSize = configuration.chunkSize
 
         let numChunks = (timeFrames + chunkSize - 1) / chunkSize
@@ -151,10 +154,10 @@ final class VocalSeparatorEngine {
             let startFrame = chunkIndex * chunkSize
             let endFrame = min((chunkIndex + 1) * chunkSize, timeFrames)
 
-            // Extract chunk
+            // Extract chunk with real/imag data
             let chunk = extractChunk(
-                leftSTFT: leftSTFT,
-                rightSTFT: rightSTFT,
+                leftComplexSTFT: leftComplexSTFT,
+                rightComplexSTFT: rightComplexSTFT,
                 startFrame: startFrame,
                 endFrame: endFrame,
                 targetSize: chunkSize
@@ -175,7 +178,9 @@ final class VocalSeparatorEngine {
 
         // Reshape results
         let vocalMagnitude = reshape2D(vocalMasks, frequencyBins: freqBins)
-        let vocalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)
+
+        // Create phase from original complex data (atan2(imag, real))
+        let vocalPhase = computePhase(leftComplexSTFT, targetBins: freqBins)
 
         return STFTProcessorV2.SpectrogramData(
             magnitude: vocalMagnitude,
@@ -183,9 +188,30 @@ final class VocalSeparatorEngine {
         )
     }
 
+    /// Compute phase from complex STFT data
+    private func computePhase(_ complexSTFT: STFTProcessorV2.ComplexSpectrogramData, targetBins: Int) -> [[Float]] {
+        let timeFrames = complexSTFT.timeFrames
+        let actualBins = min(complexSTFT.frequencyBins, targetBins)
+
+        var phase: [[Float]] = Array(
+            repeating: Array(repeating: 0, count: timeFrames),
+            count: targetBins
+        )
+
+        for f in 0..<actualBins {
+            for t in 0..<timeFrames {
+                let re = complexSTFT.real[f][t]
+                let im = complexSTFT.imag[f][t]
+                phase[f][t] = atan2f(im, re)
+            }
+        }
+
+        return phase
+    }
+
     private func extractChunk(
-        leftSTFT: STFTProcessorV2.SpectrogramData,
-        rightSTFT: STFTProcessorV2.SpectrogramData,
+        leftComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
+        rightComplexSTFT: STFTProcessorV2.ComplexSpectrogramData,
         startFrame: Int,
         endFrame: Int,
         targetSize: Int
@@ -195,25 +221,30 @@ final class VocalSeparatorEngine {
         let actualSize = endFrame - startFrame
 
         // Create MLMultiArray [1, 4, 2048, 256]
+        // Channel layout: [Left Real, Left Imag, Right Real, Right Imag]
         let inputArray = try! MLMultiArray(
             shape: [1, 4, freqBins, targetSize] as [NSNumber],
             dataType: .float32
         )
 
-        // Copy data
+        // Copy real and imaginary data properly
         for t in 0..<targetSize {
             for f in 0..<freqBins {
-                let index = [0, 0, f, t] as [NSNumber]  // Left Real
-                if t < actualSize && f < leftSTFT.frequencyBins {
-                    inputArray[index] = NSNumber(value: leftSTFT.magnitude[f][startFrame + t])
-                } else {
-                    inputArray[index] = 0
-                }
+                if t < actualSize && f < leftComplexSTFT.frequencyBins {
+                    // Left channel - real and imaginary
+                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftComplexSTFT.real[f][startFrame + t])
+                    inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftComplexSTFT.imag[f][startFrame + t])
 
-                // Other channels (simplified: imag = 0, right = left)
-                inputArray[[0, 1, f, t] as [NSNumber]] = 0  // Left Imag
-                inputArray[[0, 2, f, t] as [NSNumber]] = inputArray[index]  // Right Real
-                inputArray[[0, 3, f, t] as [NSNumber]] = 0  // Right Imag
+                    // Right channel - real and imaginary
+                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightComplexSTFT.real[f][startFrame + t])
+                    inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightComplexSTFT.imag[f][startFrame + t])
+                } else {
+                    // Zero padding for out-of-bounds
+                    inputArray[[0, 0, f, t] as [NSNumber]] = 0
+                    inputArray[[0, 1, f, t] as [NSNumber]] = 0
+                    inputArray[[0, 2, f, t] as [NSNumber]] = 0
+                    inputArray[[0, 3, f, t] as [NSNumber]] = 0
+                }
             }
         }
 

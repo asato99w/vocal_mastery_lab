@@ -18,7 +18,7 @@ final class STFTProcessorV2 {
 
     // MARK: - Types
 
-    /// STFT spectrogram data
+    /// STFT spectrogram data (magnitude + phase format)
     struct SpectrogramData {
         /// Magnitude spectrogram [frequencyBins, timeFrames]
         let magnitude: [[Float]]
@@ -31,6 +31,21 @@ final class STFTProcessorV2 {
 
         /// Number of frequency bins
         var frequencyBins: Int { magnitude.count }
+    }
+
+    /// Complex STFT data (real + imaginary format) - required for CoreML model input
+    struct ComplexSpectrogramData {
+        /// Real part [frequencyBins, timeFrames]
+        let real: [[Float]]
+
+        /// Imaginary part [frequencyBins, timeFrames]
+        let imag: [[Float]]
+
+        /// Number of time frames
+        var timeFrames: Int { real[0].count }
+
+        /// Number of frequency bins
+        var frequencyBins: Int { real.count }
     }
 
     init(fftSize: Int = 4096, hopSize: Int = 1024) {
@@ -254,6 +269,37 @@ final class STFTProcessorV2 {
         let leftSTFT = computeSTFT(audio: audioData.samples[0])
         let rightSTFT = audioData.channelCount > 1 ?
             computeSTFT(audio: audioData.samples[1]) :
+            leftSTFT
+
+        return (leftSTFT, rightSTFT)
+    }
+
+    /// Compute complex STFT (real + imag) for CoreML model input
+    func computeComplexSTFT(audio: [Float]) -> ComplexSpectrogramData {
+        let (real, imag) = stft(audio)
+
+        let frequencyBins = real[0].count
+        let timeFrames = real.count
+
+        // Transpose from [timeFrames, frequencyBins] to [frequencyBins, timeFrames]
+        var realTransposed: [[Float]] = Array(repeating: Array(repeating: 0, count: timeFrames), count: frequencyBins)
+        var imagTransposed: [[Float]] = Array(repeating: Array(repeating: 0, count: timeFrames), count: frequencyBins)
+
+        for frameIdx in 0..<timeFrames {
+            for binIdx in 0..<frequencyBins {
+                realTransposed[binIdx][frameIdx] = real[frameIdx][binIdx]
+                imagTransposed[binIdx][frameIdx] = imag[frameIdx][binIdx]
+            }
+        }
+
+        return ComplexSpectrogramData(real: realTransposed, imag: imagTransposed)
+    }
+
+    /// Compute complex STFT for stereo audio
+    func computeComplexSTFT(audioData: AudioProcessor.AudioData) -> (left: ComplexSpectrogramData, right: ComplexSpectrogramData) {
+        let leftSTFT = computeComplexSTFT(audio: audioData.samples[0])
+        let rightSTFT = audioData.channelCount > 1 ?
+            computeComplexSTFT(audio: audioData.samples[1]) :
             leftSTFT
 
         return (leftSTFT, rightSTFT)
