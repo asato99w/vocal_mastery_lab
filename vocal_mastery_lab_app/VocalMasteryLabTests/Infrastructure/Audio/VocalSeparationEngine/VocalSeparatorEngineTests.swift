@@ -324,7 +324,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
     /// Uses the same test audio file and compares correlation
     func testSeparate_comparesWithPOC() throws {
         // POC test audio and output paths
-        let pocBasePath = "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml"
+        let pocBasePath = "/Users/kazuasato/Documents/dev/music/vocal_mastery_lab/poc/uvr_coreml"
         let testAudioURL = URL(fileURLWithPath: "\(pocBasePath)/tests/output/hollow_crown_from_flac.wav")
         let pocOutputURL = URL(fileURLWithPath: "\(pocBasePath)/tests/swift_output/hollow_crown_vocals.wav")
 
@@ -337,7 +337,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
         }
 
         // Get model URL - use absolute path since Bundle.main doesn't work in unit tests
-        let modelPath = "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/vocal_mastery_lab_app/VocalMasteryLab/Resources/Models/UVR_MDX_NET.mlpackage"
+        let modelPath = "/Users/kazuasato/Documents/dev/music/vocal_mastery_lab/vocal_mastery_lab_app/VocalMasteryLab/Resources/Models/UVR_MDX_NET.mlpackage"
         let modelURL = URL(fileURLWithPath: modelPath)
 
         guard FileManager.default.fileExists(atPath: modelURL.path) else {
