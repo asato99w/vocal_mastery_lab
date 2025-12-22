@@ -92,7 +92,7 @@ class VocalSeparatorComplete {
 
     // MARK: - Public Methods
 
-    /// 音源分離実行（ファイルから）
+    /// 音源分離実行（ファイルから）- Complex STFT版
     func separate(audioURL: URL) throws -> SeparatedAudio {
         print("\n" + String(repeating: "=", count: 80))
         print("🎵 音源分離開始: \(audioURL.lastPathComponent)")
@@ -108,34 +108,34 @@ class VocalSeparatorComplete {
         // 2. ステレオ確認
         let stereoAudio = AudioFileProcessor.convertToStereo(audioData)
 
-        // 3. STFT実行
-        print("\n🔄 ステップ2: STFT実行")
-        let (leftSTFT, rightSTFT) = stftProcessor.computeSTFT(audioData: stereoAudio)
-        print("   Left: \(leftSTFT.frequencyBins) bins × \(leftSTFT.timeFrames) frames")
-        print("   Right: \(rightSTFT.frequencyBins) bins × \(rightSTFT.timeFrames) frames")
+        // 3. STFT実行 (real/imag形式で取得)
+        print("\n🔄 ステップ2: STFT実行 (Complex形式)")
+        let (leftReal, leftImag) = stftProcessor.stft(stereoAudio.samples[0])
+        let (rightReal, rightImag) = stereoAudio.channelCount > 1 ?
+            stftProcessor.stft(stereoAudio.samples[1]) :
+            (leftReal, leftImag)
 
-        // 4. CoreML推論
-        print("\n🤖 ステップ3: CoreML推論実行")
-        let vocalMask = try predictVocalMask(
-            leftSTFT: leftSTFT,
-            rightSTFT: rightSTFT
+        let timeFrames = leftReal.count
+        let freqBins = leftReal[0].count
+        print("   Left: \(freqBins) bins × \(timeFrames) frames")
+        print("   Right: \(rightReal[0].count) bins × \(rightReal.count) frames")
+
+        // 4. CoreML推論 (real/imag入力) - ステレオ処理
+        print("\n🤖 ステップ3: CoreML推論実行 (Complex入力)")
+        let (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag) = try predictVocalMaskComplexStereo(
+            leftReal: leftReal, leftImag: leftImag,
+            rightReal: rightReal, rightImag: rightImag
         )
 
-        // 5. マスク適用
-        print("\n🎭 ステップ4: マスク適用")
-        let vocalSpec = applyComplexMask(
-            spectrogram: leftSTFT,
-            mask: vocalMask
-        )
+        // 5. iSTFT実行 (ステレオ)
+        print("\n🔄 ステップ4: iSTFT実行 (ステレオ)")
+        let leftAudio = stftProcessor.istft(real: vocalLeftReal, imag: vocalLeftImag)
+        let rightAudio = stftProcessor.istft(real: vocalRightReal, imag: vocalRightImag)
 
-        // 6. iSTFT実行
-        print("\n🔄 ステップ5: iSTFT実行")
-        let vocals = stftProcessor.createAudioData(
-            leftMagnitude: vocalSpec.magnitude,
-            leftPhase: vocalSpec.phase,
-            rightMagnitude: vocalSpec.magnitude,  // 簡易版: 左を右にコピー
-            rightPhase: vocalSpec.phase,
-            sampleRate: configuration.sampleRate
+        let vocals = AudioFileProcessor.AudioData(
+            samples: [leftAudio, rightAudio],
+            sampleRate: configuration.sampleRate,
+            frameCount: leftAudio.count
         )
 
         print("\n" + String(repeating: "=", count: 80))
@@ -338,6 +338,173 @@ class VocalSeparatorComplete {
             sampleRate: audioData.sampleRate,
             frameCount: audioData.frameCount
         )
+    }
+
+    /// CoreML推論実行（Complex STFT入力版）- ステレオ対応
+    private func predictVocalMaskComplexStereo(
+        leftReal: [[Float]], leftImag: [[Float]],
+        rightReal: [[Float]], rightImag: [[Float]]
+    ) throws -> (leftReal: [[Float]], leftImag: [[Float]], rightReal: [[Float]], rightImag: [[Float]]) {
+
+        let timeFrames = leftReal.count
+        let freqBins = min(leftReal[0].count, 2048)  // モデル期待値
+        let chunkSize = configuration.chunkSize
+
+        let numChunks = (timeFrames + chunkSize - 1) / chunkSize
+        print("   チャンク数: \(numChunks) (chunk_size=\(chunkSize))")
+        print("   入力形式: [Left Real, Left Imag, Right Real, Right Imag]")
+        print("   処理: マスク取得 → 元スペクトログラムに複素数乗算 (ステレオ)")
+
+        var vocalLeftReal: [[Float]] = []
+        var vocalLeftImag: [[Float]] = []
+        var vocalRightReal: [[Float]] = []
+        var vocalRightImag: [[Float]] = []
+
+        for chunkIndex in 0..<numChunks {
+            let startFrame = chunkIndex * chunkSize
+            let endFrame = min((chunkIndex + 1) * chunkSize, timeFrames)
+            let actualSize = endFrame - startFrame
+
+            // チャンク抽出 (real/imag形式)
+            let chunk = extractChunkComplex(
+                leftReal: leftReal, leftImag: leftImag,
+                rightReal: rightReal, rightImag: rightImag,
+                startFrame: startFrame,
+                endFrame: endFrame,
+                targetSize: chunkSize
+            )
+
+            // 推論実行 → マスク取得
+            let output = try predictChunk(chunk)
+
+            // マスク抽出 (Left: Ch0+Ch1, Right: Ch2+Ch3)
+            let (maskLeftReal, maskLeftImag) = extractChannelComplex(output, realChannel: 0, imagChannel: 1, actualSize: actualSize)
+            let (maskRightReal, maskRightImag) = extractChannelComplex(output, realChannel: 2, imagChannel: 3, actualSize: actualSize)
+
+            // 複素数乗算: (a + jb) * (c + jd) = (ac - bd) + j(ad + bc)
+            for t in 0..<actualSize {
+                var resultLeftReal: [Float] = []
+                var resultLeftImag: [Float] = []
+                var resultRightReal: [Float] = []
+                var resultRightImag: [Float] = []
+                let frameIdx = startFrame + t
+
+                for f in 0..<freqBins {
+                    // Left channel
+                    let aL = leftReal[frameIdx][f]
+                    let bL = leftImag[frameIdx][f]
+                    let cL = maskLeftReal[t][f]
+                    let dL = maskLeftImag[t][f]
+                    resultLeftReal.append(aL * cL - bL * dL)
+                    resultLeftImag.append(aL * dL + bL * cL)
+
+                    // Right channel
+                    let aR = rightReal[frameIdx][f]
+                    let bR = rightImag[frameIdx][f]
+                    let cR = maskRightReal[t][f]
+                    let dR = maskRightImag[t][f]
+                    resultRightReal.append(aR * cR - bR * dR)
+                    resultRightImag.append(aR * dR + bR * cR)
+                }
+
+                vocalLeftReal.append(resultLeftReal)
+                vocalLeftImag.append(resultLeftImag)
+                vocalRightReal.append(resultRightReal)
+                vocalRightImag.append(resultRightImag)
+            }
+
+            if (chunkIndex + 1) % 10 == 0 || chunkIndex == 0 {
+                print("   進捗: \(chunkIndex + 1)/\(numChunks)")
+            }
+        }
+
+        return (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag)
+    }
+
+    /// チャンネル別のマスク抽出
+    private func extractChannelComplex(_ output: MLMultiArray, realChannel: Int, imagChannel: Int, actualSize: Int) -> (real: [[Float]], imag: [[Float]]) {
+        var realFrames: [[Float]] = []
+        var imagFrames: [[Float]] = []
+
+        for t in 0..<actualSize {
+            var realFrame: [Float] = []
+            var imagFrame: [Float] = []
+            for f in 0..<2048 {
+                let realVal = output[[0, realChannel, f, t] as [NSNumber]].floatValue
+                let imagVal = output[[0, imagChannel, f, t] as [NSNumber]].floatValue
+                realFrame.append(realVal)
+                imagFrame.append(imagVal)
+            }
+            realFrames.append(realFrame)
+            imagFrames.append(imagFrame)
+        }
+
+        return (realFrames, imagFrames)
+    }
+
+    /// チャンク抽出 (Complex STFT版)
+    private func extractChunkComplex(
+        leftReal: [[Float]], leftImag: [[Float]],
+        rightReal: [[Float]], rightImag: [[Float]],
+        startFrame: Int,
+        endFrame: Int,
+        targetSize: Int
+    ) -> MLMultiArray {
+
+        let freqBins = 2048
+        let actualSize = endFrame - startFrame
+
+        // MLMultiArray作成 [1, 4, 2048, 256]
+        let inputArray = try! MLMultiArray(
+            shape: [1, 4, freqBins, targetSize] as [NSNumber],
+            dataType: .float32
+        )
+
+        // データコピー（real/imagをそのまま使用）
+        for t in 0..<targetSize {
+            for f in 0..<freqBins {
+                let frameIdx = startFrame + t
+                if t < actualSize && f < leftReal[0].count && frameIdx < leftReal.count {
+                    // Channel 0: Left Real
+                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftReal[frameIdx][f])
+                    // Channel 1: Left Imag
+                    inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftImag[frameIdx][f])
+                    // Channel 2: Right Real
+                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightReal[frameIdx][f])
+                    // Channel 3: Right Imag
+                    inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightImag[frameIdx][f])
+                } else {
+                    inputArray[[0, 0, f, t] as [NSNumber]] = 0
+                    inputArray[[0, 1, f, t] as [NSNumber]] = 0
+                    inputArray[[0, 2, f, t] as [NSNumber]] = 0
+                    inputArray[[0, 3, f, t] as [NSNumber]] = 0
+                }
+            }
+        }
+
+        return inputArray
+    }
+
+    /// ボーカル出力抽出 (Complex形式)
+    private func extractVocalComplex(_ output: MLMultiArray, actualSize: Int) -> (real: [[Float]], imag: [[Float]]) {
+        var realFrames: [[Float]] = []
+        var imagFrames: [[Float]] = []
+
+        for t in 0..<actualSize {
+            var realFrame: [Float] = []
+            var imagFrame: [Float] = []
+            for f in 0..<2048 {
+                // Channel 0: Vocal Real, Channel 1: Vocal Imag
+                let realVal = output[[0, 0, f, t] as [NSNumber]].floatValue
+                let imagVal = output[[0, 1, f, t] as [NSNumber]].floatValue
+                realFrame.append(realVal)
+                imagFrame.append(imagVal)
+            }
+            realFrames.append(realFrame)
+            imagFrames.append(imagFrame)
+        }
+
+        return (realFrames, imagFrames)
     }
 
     /// 複素数マスク適用

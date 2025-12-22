@@ -122,39 +122,32 @@ final class VocalSeparatorEngine {
         let firstSamples = Array(stereoAudio.samples[0].prefix(10))
         logger.info("🔢 [FIRST_10_SAMPLES] \(firstSamples)")
 
-        // 3. Compute STFT (magnitude + phase) - POC compatible format
+        // 3. Compute STFT (real/imag format for complex mask processing)
         progressHandler?(0.2, "音声を解析中...")
-        let (leftSTFT, rightSTFT) = stftProcessor.computeSTFT(audioData: stereoAudio)
-        logger.info("📈 [STFT] freqBins=\(leftSTFT.frequencyBins), timeFrames=\(leftSTFT.timeFrames)")
+        let (leftReal, leftImag) = stftProcessor.stft(stereoAudio.samples[0])
+        let (rightReal, rightImag) = stereoAudio.channelCount > 1 ?
+            stftProcessor.stft(stereoAudio.samples[1]) :
+            (leftReal, leftImag)
+        let timeFrames = leftReal.count
+        let freqBins = leftReal[0].count
+        logger.info("📈 [STFT] freqBins=\(freqBins), timeFrames=\(timeFrames)")
 
-        // 4. CoreML inference with magnitude input (POC compatible)
-        let vocalMask = try predictVocalMask(
-            leftSTFT: leftSTFT,
-            rightSTFT: rightSTFT,
+        // 4. CoreML inference with complex input (stereo processing)
+        let (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag) = try predictVocalMaskComplexStereo(
+            leftReal: leftReal, leftImag: leftImag,
+            rightReal: rightReal, rightImag: rightImag,
             progressHandler: progressHandler
         )
 
-        // Log mask statistics
-        let maskStats = computeSpectrogramStats(vocalMask.magnitude)
-        logger.info("🎭 [VOCAL_MASK_STATS] min=\(maskStats.min), max=\(maskStats.max), mean=\(maskStats.mean)")
-
-        // 5. Apply mask
+        // 5. Compute iSTFT (stereo)
         progressHandler?(0.9, "出力を生成中...")
-        let vocalSpec = applyComplexMask(spectrogram: leftSTFT, mask: vocalMask)
+        let leftAudio = stftProcessor.istft(real: vocalLeftReal, imag: vocalLeftImag)
+        let rightAudio = stftProcessor.istft(real: vocalRightReal, imag: vocalRightImag)
 
-        // Log vocal spectrogram stats
-        let vocalSpecStats = computeSpectrogramStats(vocalSpec.magnitude)
-        let origSpecStats = computeSpectrogramStats(leftSTFT.magnitude)
-        logger.info("📊 [ORIG_SPEC_STATS] min=\(origSpecStats.min), max=\(origSpecStats.max), mean=\(origSpecStats.mean)")
-        logger.info("🎤 [VOCAL_SPEC_STATS] min=\(vocalSpecStats.min), max=\(vocalSpecStats.max), mean=\(vocalSpecStats.mean)")
-
-        // 6. Compute iSTFT
-        let vocals = stftProcessor.createAudioData(
-            leftMagnitude: vocalSpec.magnitude,
-            leftPhase: vocalSpec.phase,
-            rightMagnitude: vocalSpec.magnitude,
-            rightPhase: vocalSpec.phase,
-            sampleRate: configuration.sampleRate
+        let vocals = AudioProcessor.AudioData(
+            samples: [leftAudio, rightAudio],
+            sampleRate: configuration.sampleRate,
+            frameCount: leftAudio.count
         )
 
         // Log output audio stats
@@ -175,33 +168,37 @@ final class VocalSeparatorEngine {
 
     // MARK: - Private Methods
 
-    /// CoreML inference with magnitude input (POC compatible format)
-    private func predictVocalMask(
-        leftSTFT: STFTProcessorV2.SpectrogramData,
-        rightSTFT: STFTProcessorV2.SpectrogramData,
+    /// CoreML inference with complex STFT input - stereo processing
+    private func predictVocalMaskComplexStereo(
+        leftReal: [[Float]], leftImag: [[Float]],
+        rightReal: [[Float]], rightImag: [[Float]],
         progressHandler: ProgressHandler?
-    ) throws -> STFTProcessorV2.SpectrogramData {
+    ) throws -> (leftReal: [[Float]], leftImag: [[Float]], rightReal: [[Float]], rightImag: [[Float]]) {
 
         // Reset chunk counter for debugging
         chunkCounter = 0
 
-        let timeFrames = leftSTFT.timeFrames
-        let freqBins = min(leftSTFT.frequencyBins, 2048)
+        let timeFrames = leftReal.count
+        let freqBins = min(leftReal[0].count, 2048)
         let chunkSize = configuration.chunkSize
 
         let numChunks = (timeFrames + chunkSize - 1) / chunkSize
         logger.info("🤖 [COREML_START] timeFrames=\(timeFrames), freqBins=\(freqBins), chunkSize=\(chunkSize), numChunks=\(numChunks)")
 
-        var vocalMasks: [[Float]] = []
+        var vocalLeftReal: [[Float]] = []
+        var vocalLeftImag: [[Float]] = []
+        var vocalRightReal: [[Float]] = []
+        var vocalRightImag: [[Float]] = []
 
         for chunkIndex in 0..<numChunks {
             let startFrame = chunkIndex * chunkSize
             let endFrame = min((chunkIndex + 1) * chunkSize, timeFrames)
+            let actualSize = endFrame - startFrame
 
-            // Extract chunk with magnitude data (POC compatible)
-            let chunk = extractChunk(
-                leftSTFT: leftSTFT,
-                rightSTFT: rightSTFT,
+            // Extract chunk with real/imag data
+            let chunk = extractChunkComplex(
+                leftReal: leftReal, leftImag: leftImag,
+                rightReal: rightReal, rightImag: rightImag,
                 startFrame: startFrame,
                 endFrame: endFrame,
                 targetSize: chunkSize
@@ -210,32 +207,54 @@ final class VocalSeparatorEngine {
             // Predict
             let output = try predictChunk(chunk)
 
-            // Extract vocal mask (Channel 0 = vocals)
-            let actualSize = endFrame - startFrame
-            let vocalChunk = extractChannelMask(output, channel: 0, actualSize: actualSize)
-            vocalMasks.append(contentsOf: vocalChunk)
+            // Extract masks (Left: Ch0+Ch1, Right: Ch2+Ch3)
+            let (maskLeftReal, maskLeftImag) = extractChannelComplex(output, realChannel: 0, imagChannel: 1, actualSize: actualSize)
+            let (maskRightReal, maskRightImag) = extractChannelComplex(output, realChannel: 2, imagChannel: 3, actualSize: actualSize)
+
+            // Apply complex mask: (a + jb) * (c + jd) = (ac - bd) + j(ad + bc)
+            for t in 0..<actualSize {
+                var resultLeftReal: [Float] = []
+                var resultLeftImag: [Float] = []
+                var resultRightReal: [Float] = []
+                var resultRightImag: [Float] = []
+                let frameIdx = startFrame + t
+
+                for f in 0..<freqBins {
+                    // Left channel
+                    let aL = leftReal[frameIdx][f]
+                    let bL = leftImag[frameIdx][f]
+                    let cL = maskLeftReal[t][f]
+                    let dL = maskLeftImag[t][f]
+                    resultLeftReal.append(aL * cL - bL * dL)
+                    resultLeftImag.append(aL * dL + bL * cL)
+
+                    // Right channel
+                    let aR = rightReal[frameIdx][f]
+                    let bR = rightImag[frameIdx][f]
+                    let cR = maskRightReal[t][f]
+                    let dR = maskRightImag[t][f]
+                    resultRightReal.append(aR * cR - bR * dR)
+                    resultRightImag.append(aR * dR + bR * cR)
+                }
+
+                vocalLeftReal.append(resultLeftReal)
+                vocalLeftImag.append(resultLeftImag)
+                vocalRightReal.append(resultRightReal)
+                vocalRightImag.append(resultRightImag)
+            }
 
             // Update progress (20% - 90% range for inference)
             let progress = 0.2 + (Double(chunkIndex + 1) / Double(numChunks)) * 0.7
             progressHandler?(progress, "ボーカルを抽出中... (\(chunkIndex + 1)/\(numChunks))")
         }
 
-        // Reshape results
-        let vocalMagnitude = reshape2D(vocalMasks, frequencyBins: freqBins)
-
-        // Use original phase for iSTFT reconstruction
-        let vocalPhase = trimPhase(leftSTFT.phase, targetBins: freqBins)
-
-        return STFTProcessorV2.SpectrogramData(
-            magnitude: vocalMagnitude,
-            phase: vocalPhase
-        )
+        return (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag)
     }
 
-    /// Extract chunk for CoreML input (POC compatible: magnitude with zero imaginary)
-    private func extractChunk(
-        leftSTFT: STFTProcessorV2.SpectrogramData,
-        rightSTFT: STFTProcessorV2.SpectrogramData,
+    /// Extract chunk for CoreML input (complex STFT format)
+    private func extractChunkComplex(
+        leftReal: [[Float]], leftImag: [[Float]],
+        rightReal: [[Float]], rightImag: [[Float]],
         startFrame: Int,
         endFrame: Int,
         targetSize: Int
@@ -245,24 +264,24 @@ final class VocalSeparatorEngine {
         let actualSize = endFrame - startFrame
 
         // Create MLMultiArray [1, 4, 2048, 256]
-        // POC compatible format: [Left Magnitude, 0, Right Magnitude, 0]
         let inputArray = try! MLMultiArray(
             shape: [1, 4, freqBins, targetSize] as [NSNumber],
             dataType: .float32
         )
 
-        // Copy magnitude data (POC compatible: imaginary channels are zero)
+        // Copy real/imag data
         for t in 0..<targetSize {
             for f in 0..<freqBins {
-                if t < actualSize && f < leftSTFT.frequencyBins {
-                    // Channel 0: Left magnitude
-                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftSTFT.magnitude[f][startFrame + t])
-                    // Channel 1: Left imaginary = 0 (POC compatible)
-                    inputArray[[0, 1, f, t] as [NSNumber]] = 0
-                    // Channel 2: Right magnitude (same as left in POC)
-                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: leftSTFT.magnitude[f][startFrame + t])
-                    // Channel 3: Right imaginary = 0 (POC compatible)
-                    inputArray[[0, 3, f, t] as [NSNumber]] = 0
+                let frameIdx = startFrame + t
+                if t < actualSize && f < leftReal[0].count && frameIdx < leftReal.count {
+                    // Channel 0: Left Real
+                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftReal[frameIdx][f])
+                    // Channel 1: Left Imag
+                    inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftImag[frameIdx][f])
+                    // Channel 2: Right Real
+                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightReal[frameIdx][f])
+                    // Channel 3: Right Imag
+                    inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightImag[frameIdx][f])
                 } else {
                     // Zero padding for out-of-bounds
                     inputArray[[0, 0, f, t] as [NSNumber]] = 0
@@ -274,6 +293,27 @@ final class VocalSeparatorEngine {
         }
 
         return inputArray
+    }
+
+    /// Extract complex mask from model output
+    private func extractChannelComplex(_ output: MLMultiArray, realChannel: Int, imagChannel: Int, actualSize: Int) -> (real: [[Float]], imag: [[Float]]) {
+        var realFrames: [[Float]] = []
+        var imagFrames: [[Float]] = []
+
+        for t in 0..<actualSize {
+            var realFrame: [Float] = []
+            var imagFrame: [Float] = []
+            for f in 0..<2048 {
+                let realVal = output[[0, realChannel, f, t] as [NSNumber]].floatValue
+                let imagVal = output[[0, imagChannel, f, t] as [NSNumber]].floatValue
+                realFrame.append(realVal)
+                imagFrame.append(imagVal)
+            }
+            realFrames.append(realFrame)
+            imagFrames.append(imagFrame)
+        }
+
+        return (realFrames, imagFrames)
     }
 
     private var chunkCounter = 0
