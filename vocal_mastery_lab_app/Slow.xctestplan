@@ -20,7 +20,8 @@
     {
       "selectedTests" : [
         "RealtimePitchDetectorTests",
-        "AudioSessionManagerTests"
+        "AudioSessionManagerTests",
+        "VocalSeparatorEngineTests"
       ],
       "target" : {
         "containerPath" : "container:VocalMasteryLab.xcodeproj",

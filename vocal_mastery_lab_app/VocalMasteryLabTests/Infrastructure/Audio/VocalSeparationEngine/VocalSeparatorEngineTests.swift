@@ -317,4 +317,99 @@ final class VocalSeparatorEngineTests: XCTestCase {
 
         return samples
     }
+
+    // MARK: - POC Comparison Tests
+
+    /// Integration test comparing App engine output with POC output
+    /// Uses the same test audio file and compares correlation
+    func testSeparate_comparesWithPOC() throws {
+        // POC test audio and output paths
+        let pocBasePath = "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml"
+        let testAudioURL = URL(fileURLWithPath: "\(pocBasePath)/tests/output/hollow_crown_from_flac.wav")
+        let pocOutputURL = URL(fileURLWithPath: "\(pocBasePath)/tests/swift_output/hollow_crown_vocals.wav")
+
+        // Verify test files exist
+        guard FileManager.default.fileExists(atPath: testAudioURL.path) else {
+            throw XCTSkip("Test audio file not found: \(testAudioURL.path)")
+        }
+        guard FileManager.default.fileExists(atPath: pocOutputURL.path) else {
+            throw XCTSkip("POC output file not found: \(pocOutputURL.path)")
+        }
+
+        // Get model URL - use absolute path since Bundle.main doesn't work in unit tests
+        let modelPath = "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/vocal_mastery_lab_app/VocalMasteryLab/Resources/Models/UVR_MDX_NET.mlpackage"
+        let modelURL = URL(fileURLWithPath: modelPath)
+
+        guard FileManager.default.fileExists(atPath: modelURL.path) else {
+            throw XCTSkip("CoreML model not available at: \(modelPath)")
+        }
+
+        // Initialize engine
+        let engine = try VocalSeparatorEngine(modelURL: modelURL)
+
+        // Run separation
+        print("🎵 [APP_TEST] Starting vocal extraction...")
+        let startTime = CFAbsoluteTimeGetCurrent()
+        let result = try engine.separate(audioURL: testAudioURL, progressHandler: nil)
+        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        print("✅ [APP_TEST] Extraction completed in \(String(format: "%.2f", elapsed))s")
+
+        // Save App output
+        let appOutputURL = tempDirectory.appendingPathComponent("app_vocals.wav")
+        try engine.save(result: result, to: appOutputURL)
+        print("💾 [APP_TEST] Output saved to: \(appOutputURL.path)")
+
+        // Load POC output for comparison
+        let pocAudio = try AudioProcessor.loadAudio(from: pocOutputURL)
+        let appAudio = result.vocals
+
+        print("📊 [COMPARISON] POC: \(pocAudio.frameCount) frames, App: \(appAudio.frameCount) frames")
+
+        // Normalize and compare
+        let pocLeft = normalize(pocAudio.samples[0])
+        let appLeft = normalize(appAudio.samples[0])
+
+        // Align lengths
+        let minLen = min(pocLeft.count, appLeft.count)
+        let pocSlice = Array(pocLeft[0..<minLen])
+        let appSlice = Array(appLeft[0..<minLen])
+
+        // Calculate correlation
+        let correlation = calculateCorrelation(pocSlice, appSlice)
+        print("📈 [COMPARISON] Correlation: \(correlation)")
+
+        // Calculate RMS
+        let pocRMS = calculateRMS(pocSlice)
+        let appRMS = calculateRMS(appSlice)
+        print("📊 [COMPARISON] POC RMS: \(pocRMS), App RMS: \(appRMS)")
+
+        // Add test attachment
+        let report = """
+        ===== POC vs App Comparison =====
+        Correlation: \(correlation)
+        POC RMS: \(pocRMS)
+        App RMS: \(appRMS)
+        POC frames: \(pocAudio.frameCount)
+        App frames: \(appAudio.frameCount)
+        App output: \(appOutputURL.path)
+        =================================
+        """
+        let attachment = XCTAttachment(string: report)
+        attachment.name = "POC vs App Comparison"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        // Assert high correlation (target: > 0.95)
+        XCTAssertGreaterThan(
+            correlation, 0.95,
+            "App output should correlate with POC output (correlation=\(correlation), target>0.95)"
+        )
+    }
+
+    private func normalize(_ samples: [Float]) -> [Float] {
+        guard !samples.isEmpty else { return samples }
+        let maxAbs = samples.map { abs($0) }.max() ?? 1.0
+        guard maxAbs > 0 else { return samples }
+        return samples.map { $0 / maxAbs }
+    }
 }

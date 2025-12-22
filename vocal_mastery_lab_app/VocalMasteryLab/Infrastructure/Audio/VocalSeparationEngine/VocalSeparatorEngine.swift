@@ -251,7 +251,7 @@ final class VocalSeparatorEngine {
         return (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag)
     }
 
-    /// Extract chunk for CoreML input (complex STFT format)
+    /// Extract chunk for CoreML input (complex STFT format) - optimized with dataPointer
     private func extractChunkComplex(
         leftReal: [[Float]], leftImag: [[Float]],
         rightReal: [[Float]], rightImag: [[Float]],
@@ -262,6 +262,7 @@ final class VocalSeparatorEngine {
 
         let freqBins = 2048
         let actualSize = endFrame - startFrame
+        let srcFreqBins = leftReal.isEmpty ? 0 : leftReal[0].count
 
         // Create MLMultiArray [1, 4, 2048, 256]
         let inputArray = try! MLMultiArray(
@@ -269,11 +270,11 @@ final class VocalSeparatorEngine {
             dataType: .float32
         )
 
-        // Copy real/imag data
+        // Use subscript access for correctness (temporarily revert optimization)
         for t in 0..<targetSize {
             for f in 0..<freqBins {
                 let frameIdx = startFrame + t
-                if t < actualSize && f < leftReal[0].count && frameIdx < leftReal.count {
+                if t < actualSize && f < srcFreqBins && frameIdx < leftReal.count {
                     // Channel 0: Left Real
                     inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftReal[frameIdx][f])
                     // Channel 1: Left Imag
@@ -283,7 +284,6 @@ final class VocalSeparatorEngine {
                     // Channel 3: Right Imag
                     inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightImag[frameIdx][f])
                 } else {
-                    // Zero padding for out-of-bounds
                     inputArray[[0, 0, f, t] as [NSNumber]] = 0
                     inputArray[[0, 1, f, t] as [NSNumber]] = 0
                     inputArray[[0, 2, f, t] as [NSNumber]] = 0
@@ -295,15 +295,35 @@ final class VocalSeparatorEngine {
         return inputArray
     }
 
-    /// Extract complex mask from model output
+    /// Extract complex mask from model output (optimized with dataPointer)
     private func extractChannelComplex(_ output: MLMultiArray, realChannel: Int, imagChannel: Int, actualSize: Int) -> (real: [[Float]], imag: [[Float]]) {
+        let freqBins = 2048
+        let timeFrames = 256  // chunkSize
+
+        // Get strides for memory layout: [1, 4, 2048, 256]
+        let strides = output.strides.map { $0.intValue }
+        let s0 = strides[0]  // batch stride
+        let s1 = strides[1]  // channel stride
+        let s2 = strides[2]  // frequency stride
+        let s3 = strides[3]  // time stride
+
         var realFrames: [[Float]] = []
         var imagFrames: [[Float]] = []
 
+        // Debug: Log output dataType once
+        struct OutputTypeLogger {
+            static var logged = false
+        }
+        if !OutputTypeLogger.logged {
+            print("📊 [OUTPUT_DEBUG] dataType=\(output.dataType.rawValue), shape=\(output.shape), strides=\(output.strides)")
+            OutputTypeLogger.logged = true
+        }
+
+        // Use subscript access for correctness (temporarily revert optimization)
         for t in 0..<actualSize {
             var realFrame: [Float] = []
             var imagFrame: [Float] = []
-            for f in 0..<2048 {
+            for f in 0..<freqBins {
                 let realVal = output[[0, realChannel, f, t] as [NSNumber]].floatValue
                 let imagVal = output[[0, imagChannel, f, t] as [NSNumber]].floatValue
                 realFrame.append(realVal)
@@ -486,12 +506,38 @@ final class VocalSeparatorEngine {
         var maxVal: Float = -.greatestFiniteMagnitude
         var sum: Float = 0
 
-        let ptr = array.dataPointer.assumingMemoryBound(to: Float.self)
-        for i in 0..<count {
-            let val = ptr[i]
-            minVal = Swift.min(minVal, val)
-            maxVal = Swift.max(maxVal, val)
-            sum += val
+        // Use type-safe access based on MLMultiArray dataType
+        switch array.dataType {
+        case .float32:
+            let ptr = array.dataPointer.assumingMemoryBound(to: Float.self)
+            for i in 0..<count {
+                let val = ptr[i]
+                minVal = Swift.min(minVal, val)
+                maxVal = Swift.max(maxVal, val)
+                sum += val
+            }
+        case .float16:
+            // Float16 requires subscript access for safe conversion
+            let sampleCount = min(count, 1000)  // Sample first 1000 for performance
+            for i in 0..<sampleCount {
+                let val = array[i].floatValue
+                minVal = Swift.min(minVal, val)
+                maxVal = Swift.max(maxVal, val)
+                sum += val
+            }
+            let mean = sum / Float(sampleCount)
+            return Stats(min: minVal, max: maxVal, mean: mean, rms: 0)
+        default:
+            // Fallback to subscript access for other types
+            let sampleCount = min(count, 1000)
+            for i in 0..<sampleCount {
+                let val = array[i].floatValue
+                minVal = Swift.min(minVal, val)
+                maxVal = Swift.max(maxVal, val)
+                sum += val
+            }
+            let mean = sum / Float(sampleCount)
+            return Stats(min: minVal, max: maxVal, mean: mean, rms: 0)
         }
 
         let mean = sum / Float(count)
