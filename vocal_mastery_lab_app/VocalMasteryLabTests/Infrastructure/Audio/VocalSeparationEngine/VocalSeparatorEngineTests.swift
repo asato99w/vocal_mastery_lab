@@ -354,8 +354,8 @@ final class VocalSeparatorEngineTests: XCTestCase {
         let elapsed = CFAbsoluteTimeGetCurrent() - startTime
         print("✅ [APP_TEST] Extraction completed in \(String(format: "%.2f", elapsed))s")
 
-        // Save App output
-        let appOutputURL = tempDirectory.appendingPathComponent("app_vocals.wav")
+        // Save App output to POC directory for comparison
+        let appOutputURL = URL(fileURLWithPath: "\(pocBasePath)/tests/swift_output/app_vocals.wav")
         try engine.save(result: result, to: appOutputURL)
         print("💾 [APP_TEST] Output saved to: \(appOutputURL.path)")
 
