@@ -11,7 +11,7 @@ func runMDXNetTest() throws {
     let currentDir = FileManager.default.currentDirectoryPath
     let baseURL = URL(fileURLWithPath: currentDir)
     let modelPath = baseURL.appendingPathComponent("models/coreml/UVR-MDX-NET-Inst_Main.mlpackage")
-    let inputPath = baseURL.appendingPathComponent("tests/output/hollow_crown.wav")
+    let inputPath = baseURL.appendingPathComponent("tests/output/hollow_crown_15s.wav")
     let outputDir = baseURL.appendingPathComponent("tests/swift_output")
 
     try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
@@ -27,8 +27,8 @@ func runMDXNetTest() throws {
     print("✅ 完了: \(String(format: "%.2f", elapsed))秒")
 
     // 保存
-    let vocalsPath = outputDir.appendingPathComponent("hollow_crown_vocals.wav")
-    let instPath = outputDir.appendingPathComponent("hollow_crown_instrumental.wav")
+    let vocalsPath = outputDir.appendingPathComponent("hollow_crown_15s_vocals.wav")
+    let instPath = outputDir.appendingPathComponent("hollow_crown_15s_instrumental.wav")
 
     try saveAudio(vocals, to: vocalsPath, sampleRate: 44100)
     try saveAudio(instrumental, to: instPath, sampleRate: 44100)

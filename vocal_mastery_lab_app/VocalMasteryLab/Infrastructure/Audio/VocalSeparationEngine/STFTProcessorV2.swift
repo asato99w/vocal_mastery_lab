@@ -48,13 +48,15 @@ final class STFTProcessorV2 {
         var frequencyBins: Int { real.count }
     }
 
-    init(fftSize: Int = 4096, hopSize: Int = 1024) {
+    init(fftSize: Int = 6144, hopSize: Int = 1024) {
         self.fftSize = fftSize
         self.hopSize = hopSize
 
-        // Create Hann window
+        // Create periodic Hann window (PyTorch compatible, periodic=True)
         var w = [Float](repeating: 0, count: fftSize)
-        vDSP_hann_window(&w, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
+        for i in 0..<fftSize {
+            w[i] = 0.5 - 0.5 * cos(2.0 * Float.pi * Float(i) / Float(fftSize))
+        }
         self.window = w
 
         // Create DFT setup for forward and inverse transforms

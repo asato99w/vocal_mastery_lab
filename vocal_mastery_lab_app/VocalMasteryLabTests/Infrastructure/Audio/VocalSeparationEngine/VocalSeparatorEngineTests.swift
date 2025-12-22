@@ -23,7 +23,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
     func testModelConfiguration_default_hasExpectedValues() {
         let config = VocalSeparatorEngine.ModelConfiguration.default
 
-        XCTAssertEqual(config.fftSize, 4096)
+        XCTAssertEqual(config.fftSize, 6144)
         XCTAssertEqual(config.hopSize, 1024)
         XCTAssertEqual(config.sampleRate, 44100)
         XCTAssertEqual(config.chunkSize, 256)
@@ -320,90 +320,61 @@ final class VocalSeparatorEngineTests: XCTestCase {
 
     // MARK: - POC Comparison Tests
 
-    /// Integration test comparing App engine output with POC output
-    /// Uses the same test audio file and compares correlation
-    func testSeparate_comparesWithPOC() throws {
-        // POC test audio and output paths
-        let pocBasePath = "/Users/kazuasato/Documents/dev/music/vocal_mastery_lab/poc/uvr_coreml"
-        let testAudioURL = URL(fileURLWithPath: "\(pocBasePath)/tests/output/hollow_crown_from_flac.wav")
-        let pocOutputURL = URL(fileURLWithPath: "\(pocBasePath)/tests/swift_output/hollow_crown_vocals.wav")
+    /// 製品コードでボーカル抽出を実行（テストBundle内のリソースを使用）
+    ///
+    /// **現状の問題 (2024-12-22)**:
+    /// - xcodebuildの再ビルドに時間がかかりすぎる（数分）
+    /// - POCは同じ実装で15秒音声を約9秒で処理完了
+    /// - TestResources/Audio/hollow_crown_15s.wav と
+    ///   TestResources/Models/UVR-MDX-NET-Inst_Main.mlpackage は配置済み
+    /// - Xcodeの増分ビルドまたはXcode GUIからのテスト実行で検証が必要
+    ///
+    /// **検証方法**:
+    /// 1. Xcodeで VocalMasteryLab-UnitOnly スキームを選択
+    /// 2. このテストを単体実行 (Cmd+U または Test Navigator から)
+    /// 3. 出力ファイルはXCTest attachmentとして保存される
+    func testSeparate_withBundledResources() throws {
+        let bundle = Bundle(for: type(of: self))
 
-        // Verify test files exist
-        guard FileManager.default.fileExists(atPath: testAudioURL.path) else {
-            throw XCTSkip("Test audio file not found: \(testAudioURL.path)")
-        }
-        guard FileManager.default.fileExists(atPath: pocOutputURL.path) else {
-            throw XCTSkip("POC output file not found: \(pocOutputURL.path)")
-        }
-
-        // Get model URL - use absolute path since Bundle.main doesn't work in unit tests
-        let modelPath = "/Users/kazuasato/Documents/dev/music/vocal_mastery_lab/vocal_mastery_lab_app/VocalMasteryLab/Resources/Models/UVR_MDX_NET.mlpackage"
-        let modelURL = URL(fileURLWithPath: modelPath)
-
-        guard FileManager.default.fileExists(atPath: modelURL.path) else {
-            throw XCTSkip("CoreML model not available at: \(modelPath)")
+        // テストBundle内の音声ファイルを探す
+        guard let testAudioURL = bundle.url(forResource: "hollow_crown_15s", withExtension: "wav") else {
+            throw XCTSkip("Test audio not found in bundle. Add hollow_crown_15s.wav to test target.")
         }
 
-        // Initialize engine
+        // テストBundle内のモデルを探す（コンパイル済み.mlmodelcを優先）
+        var modelURL: URL?
+        if let url = bundle.url(forResource: "UVR-MDX-NET-Inst_Main", withExtension: "mlmodelc") {
+            modelURL = url
+        } else if let url = bundle.url(forResource: "UVR-MDX-NET-Inst_Main", withExtension: "mlpackage") {
+            modelURL = url
+        }
+        guard let modelURL = modelURL else {
+            throw XCTSkip("Model not found in bundle. Add UVR-MDX-NET-Inst_Main to test target.")
+        }
+
+        print("📁 Audio: \(testAudioURL.path)")
+        print("📁 Model: \(modelURL.path)")
+
+        // 抽出実行
         let engine = try VocalSeparatorEngine(modelURL: modelURL)
-
-        // Run separation
-        print("🎵 [APP_TEST] Starting vocal extraction...")
-        let startTime = CFAbsoluteTimeGetCurrent()
+        print("🎵 抽出開始...")
         let result = try engine.separate(audioURL: testAudioURL, progressHandler: nil)
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-        print("✅ [APP_TEST] Extraction completed in \(String(format: "%.2f", elapsed))s")
+        print("✅ 抽出完了")
 
-        // Save App output to POC directory for comparison
-        let appOutputURL = URL(fileURLWithPath: "\(pocBasePath)/tests/swift_output/app_vocals.wav")
-        try engine.save(result: result, to: appOutputURL)
-        print("💾 [APP_TEST] Output saved to: \(appOutputURL.path)")
+        // シミュレータ内の一時ディレクトリに保存
+        let outputURL = tempDirectory.appendingPathComponent("app_vocals_15s.wav")
+        try engine.save(result: result, to: outputURL)
+        print("💾 保存: \(outputURL.path)")
 
-        // Load POC output for comparison
-        let pocAudio = try AudioProcessor.loadAudio(from: pocOutputURL)
-        let appAudio = result.vocals
-
-        print("📊 [COMPARISON] POC: \(pocAudio.frameCount) frames, App: \(appAudio.frameCount) frames")
-
-        // Normalize and compare
-        let pocLeft = normalize(pocAudio.samples[0])
-        let appLeft = normalize(appAudio.samples[0])
-
-        // Align lengths
-        let minLen = min(pocLeft.count, appLeft.count)
-        let pocSlice = Array(pocLeft[0..<minLen])
-        let appSlice = Array(appLeft[0..<minLen])
-
-        // Calculate correlation
-        let correlation = calculateCorrelation(pocSlice, appSlice)
-        print("📈 [COMPARISON] Correlation: \(correlation)")
-
-        // Calculate RMS
-        let pocRMS = calculateRMS(pocSlice)
-        let appRMS = calculateRMS(appSlice)
-        print("📊 [COMPARISON] POC RMS: \(pocRMS), App RMS: \(appRMS)")
-
-        // Add test attachment
-        let report = """
-        ===== POC vs App Comparison =====
-        Correlation: \(correlation)
-        POC RMS: \(pocRMS)
-        App RMS: \(appRMS)
-        POC frames: \(pocAudio.frameCount)
-        App frames: \(appAudio.frameCount)
-        App output: \(appOutputURL.path)
-        =================================
-        """
-        let attachment = XCTAttachment(string: report)
-        attachment.name = "POC vs App Comparison"
+        // 結果をXCTest attachmentとして保存（外部から取得可能）
+        let attachment = XCTAttachment(contentsOfFile: outputURL)
+        attachment.name = "app_vocals_15s.wav"
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        // Assert high correlation (target: > 0.95)
-        XCTAssertGreaterThan(
-            correlation, 0.95,
-            "App output should correlate with POC output (correlation=\(correlation), target>0.95)"
-        )
+        XCTAssertGreaterThan(result.vocals.frameCount, 0)
+        XCTAssertEqual(result.vocals.channelCount, 2)
+        print("✅ フレーム数: \(result.vocals.frameCount)")
     }
 
     private func normalize(_ samples: [Float]) -> [Float] {

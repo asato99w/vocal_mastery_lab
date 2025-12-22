@@ -7,15 +7,27 @@ import os.log
 private let logger = Logger(subsystem: "com.kazuasato.VocalMasteryLab", category: "VocalSeparatorEngine")
 
 /// Vocal separation engine using CoreML and STFT
-///
-/// Integrates AVAudioFile + STFT + CoreML for end-to-end vocal extraction
+/// Based on UVR-MDX-NET implementation (Python compatible)
 final class VocalSeparatorEngine {
+
+    // MARK: - Constants (Python実装と同じ)
+
+    private let nFFT: Int = 6144
+    private let dimF: Int = 2048
+    private let dimT: Int = 256  // 2^8
+    private let hop: Int = 1024
+    private let targetSampleRate: Int = 44100
+    private let dimC: Int = 4  // ステレオ x (実部+虚部)
+
+    private var nBins: Int { nFFT / 2 + 1 }  // 3073
+    private var chunkSize: Int { hop * (dimT - 1) }  // 261120
 
     // MARK: - Properties
 
     private let model: MLModel
-    private let stftProcessor: STFTProcessorV2
-    private let configuration: ModelConfiguration
+    private let window: [Float]
+    private var dftSetupForward: OpaquePointer?
+    private var dftSetupInverse: OpaquePointer?
 
     // MARK: - Types
 
@@ -26,7 +38,7 @@ final class VocalSeparatorEngine {
         let chunkSize: Int
 
         static let `default` = ModelConfiguration(
-            fftSize: 4096,
+            fftSize: 6144,
             hopSize: 1024,
             sampleRate: 44100,
             chunkSize: 256
@@ -59,15 +71,13 @@ final class VocalSeparatorEngine {
     // MARK: - Initialization
 
     init(modelURL: URL, configuration: ModelConfiguration = .default) throws {
-        let compiledURL: URL
+        logger.info("🔄 VocalSeparatorEngine 初期化中...")
 
-        // Check if model is already compiled (.mlmodelc) or needs compilation (.mlpackage)
+        let compiledURL: URL
         if modelURL.pathExtension == "mlmodelc" {
-            // Already compiled, use directly
             compiledURL = modelURL
             logger.info("📦 [MODEL] Using pre-compiled model: \(modelURL.lastPathComponent)")
         } else {
-            // Needs compilation
             logger.info("🔨 [MODEL] Compiling model: \(modelURL.lastPathComponent)")
             do {
                 compiledURL = try MLModel.compileModel(at: modelURL)
@@ -86,11 +96,28 @@ final class VocalSeparatorEngine {
             throw SeparationError.modelLoadFailed(error.localizedDescription)
         }
 
-        self.configuration = configuration
-        self.stftProcessor = STFTProcessorV2(
-            fftSize: configuration.fftSize,
-            hopSize: configuration.hopSize
-        )
+        // Hann window (periodic=True, PyTorch compatible)
+        var w = [Float](repeating: 0, count: nFFT)
+        for i in 0..<nFFT {
+            w[i] = 0.5 - 0.5 * cos(2.0 * Float.pi * Float(i) / Float(nFFT))
+        }
+        self.window = w
+
+        // DFT setup
+        self.dftSetupForward = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(nFFT), .FORWARD)
+        self.dftSetupInverse = vDSP_DFT_zop_CreateSetup(nil, vDSP_Length(nFFT), .INVERSE)
+
+        guard dftSetupForward != nil, dftSetupInverse != nil else {
+            throw SeparationError.processingFailed("DFT setup failed")
+        }
+
+        logger.info("✅ VocalSeparatorEngine 初期化完了")
+        logger.info("   n_fft=\(self.nFFT), dim_f=\(self.dimF), dim_t=\(self.dimT), hop=\(self.hop)")
+    }
+
+    deinit {
+        if let setup = dftSetupForward { vDSP_DFT_DestroySetup(setup) }
+        if let setup = dftSetupInverse { vDSP_DFT_DestroySetup(setup) }
     }
 
     // MARK: - Public Methods
@@ -105,55 +132,32 @@ final class VocalSeparatorEngine {
 
         // 1. Load audio
         progressHandler?(0.1, "音声を読み込み中...")
-        let audioData = try AudioProcessor.loadAudio(
-            from: audioURL,
-            targetSampleRate: configuration.sampleRate
-        )
-        logger.info("📥 [AUDIO_LOADED] channels=\(audioData.channelCount), frames=\(audioData.frameCount), sampleRate=\(audioData.sampleRate)")
+        let (left, right) = try loadAudio(url: audioURL)
+        logger.info("📥 [AUDIO_LOADED] frames=\(left.count)")
 
-        // 2. Convert to stereo if needed
-        let stereoAudio = AudioProcessor.convertToStereo(audioData)
+        // 2. Demix (separate)
+        progressHandler?(0.2, "ボーカルを抽出中...")
+        let instrumental = try demix(left: left, right: right, denoise: true, progressHandler: progressHandler)
 
-        // Log audio stats (POC compatible format)
-        let leftStats = computeStats(stereoAudio.samples[0])
-        logger.info("📊 [LEFT_AUDIO_STATS] min=\(leftStats.min), max=\(leftStats.max), mean=\(leftStats.mean), rms=\(leftStats.rms)")
+        // 3. Vocals = Original - Instrumental
+        var vocalsLeft = [Float](repeating: 0, count: left.count)
+        var vocalsRight = [Float](repeating: 0, count: right.count)
 
-        // Log first 10 samples for debugging
-        let firstSamples = Array(stereoAudio.samples[0].prefix(10))
-        logger.info("🔢 [FIRST_10_SAMPLES] \(firstSamples)")
-
-        // 3. Compute STFT (real/imag format for complex mask processing)
-        progressHandler?(0.2, "音声を解析中...")
-        let (leftReal, leftImag) = stftProcessor.stft(stereoAudio.samples[0])
-        let (rightReal, rightImag) = stereoAudio.channelCount > 1 ?
-            stftProcessor.stft(stereoAudio.samples[1]) :
-            (leftReal, leftImag)
-        let timeFrames = leftReal.count
-        let freqBins = leftReal[0].count
-        logger.info("📈 [STFT] freqBins=\(freqBins), timeFrames=\(timeFrames)")
-
-        // 4. CoreML inference with complex input (stereo processing)
-        let (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag) = try predictVocalMaskComplexStereo(
-            leftReal: leftReal, leftImag: leftImag,
-            rightReal: rightReal, rightImag: rightImag,
-            progressHandler: progressHandler
-        )
-
-        // 5. Compute iSTFT (stereo)
-        progressHandler?(0.9, "出力を生成中...")
-        let leftAudio = stftProcessor.istft(real: vocalLeftReal, imag: vocalLeftImag)
-        let rightAudio = stftProcessor.istft(real: vocalRightReal, imag: vocalRightImag)
+        for i in 0..<min(left.count, instrumental.count) {
+            vocalsLeft[i] = left[i] - instrumental[i]
+            vocalsRight[i] = right[i] - instrumental[i]
+        }
 
         let vocals = AudioProcessor.AudioData(
-            samples: [leftAudio, rightAudio],
-            sampleRate: configuration.sampleRate,
-            frameCount: leftAudio.count
+            samples: [vocalsLeft, vocalsRight],
+            sampleRate: Double(targetSampleRate),
+            frameCount: vocalsLeft.count
         )
 
-        // Log output audio stats
-        let outputStats = computeStats(vocals.samples[0])
-        logger.info("🎵 [OUTPUT_AUDIO_STATS] min=\(outputStats.min), max=\(outputStats.max), mean=\(outputStats.mean), rms=\(outputStats.rms)")
-        logger.info("✅ [SEPARATION_COMPLETE] outputFrames=\(vocals.frameCount)")
+        // Log output stats
+        let rms = sqrt(vocalsLeft.reduce(0) { $0 + $1 * $1 } / Float(vocalsLeft.count))
+        logger.info("🎵 [OUTPUT_STATS] rms=\(rms), frames=\(vocals.frameCount)")
+        logger.info("✅ [SEPARATION_COMPLETE]")
 
         progressHandler?(1.0, "完了")
 
@@ -168,379 +172,289 @@ final class VocalSeparatorEngine {
 
     // MARK: - Private Methods
 
-    /// CoreML inference with complex STFT input - stereo processing
-    private func predictVocalMaskComplexStereo(
-        leftReal: [[Float]], leftImag: [[Float]],
-        rightReal: [[Float]], rightImag: [[Float]],
-        progressHandler: ProgressHandler?
-    ) throws -> (leftReal: [[Float]], leftImag: [[Float]], rightReal: [[Float]], rightImag: [[Float]]) {
+    private func loadAudio(url: URL) throws -> (left: [Float], right: [Float]) {
+        let file = try AVAudioFile(forReading: url)
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: Double(targetSampleRate),
+            channels: 2,
+            interleaved: false
+        )!
 
-        // Reset chunk counter for debugging
-        chunkCounter = 0
-
-        let timeFrames = leftReal.count
-        let freqBins = min(leftReal[0].count, 2048)
-        let chunkSize = configuration.chunkSize
-
-        let numChunks = (timeFrames + chunkSize - 1) / chunkSize
-        logger.info("🤖 [COREML_START] timeFrames=\(timeFrames), freqBins=\(freqBins), chunkSize=\(chunkSize), numChunks=\(numChunks)")
-
-        var vocalLeftReal: [[Float]] = []
-        var vocalLeftImag: [[Float]] = []
-        var vocalRightReal: [[Float]] = []
-        var vocalRightImag: [[Float]] = []
-
-        for chunkIndex in 0..<numChunks {
-            let startFrame = chunkIndex * chunkSize
-            let endFrame = min((chunkIndex + 1) * chunkSize, timeFrames)
-            let actualSize = endFrame - startFrame
-
-            // Extract chunk with real/imag data
-            let chunk = extractChunkComplex(
-                leftReal: leftReal, leftImag: leftImag,
-                rightReal: rightReal, rightImag: rightImag,
-                startFrame: startFrame,
-                endFrame: endFrame,
-                targetSize: chunkSize
-            )
-
-            // Predict
-            let output = try predictChunk(chunk)
-
-            // Extract masks (Left: Ch0+Ch1, Right: Ch2+Ch3)
-            let (maskLeftReal, maskLeftImag) = extractChannelComplex(output, realChannel: 0, imagChannel: 1, actualSize: actualSize)
-            let (maskRightReal, maskRightImag) = extractChannelComplex(output, realChannel: 2, imagChannel: 3, actualSize: actualSize)
-
-            // Apply complex mask: (a + jb) * (c + jd) = (ac - bd) + j(ad + bc)
-            for t in 0..<actualSize {
-                var resultLeftReal: [Float] = []
-                var resultLeftImag: [Float] = []
-                var resultRightReal: [Float] = []
-                var resultRightImag: [Float] = []
-                let frameIdx = startFrame + t
-
-                for f in 0..<freqBins {
-                    // Left channel
-                    let aL = leftReal[frameIdx][f]
-                    let bL = leftImag[frameIdx][f]
-                    let cL = maskLeftReal[t][f]
-                    let dL = maskLeftImag[t][f]
-                    resultLeftReal.append(aL * cL - bL * dL)
-                    resultLeftImag.append(aL * dL + bL * cL)
-
-                    // Right channel
-                    let aR = rightReal[frameIdx][f]
-                    let bR = rightImag[frameIdx][f]
-                    let cR = maskRightReal[t][f]
-                    let dR = maskRightImag[t][f]
-                    resultRightReal.append(aR * cR - bR * dR)
-                    resultRightImag.append(aR * dR + bR * cR)
-                }
-
-                vocalLeftReal.append(resultLeftReal)
-                vocalLeftImag.append(resultLeftImag)
-                vocalRightReal.append(resultRightReal)
-                vocalRightImag.append(resultRightImag)
-            }
-
-            // Update progress (20% - 90% range for inference)
-            let progress = 0.2 + (Double(chunkIndex + 1) / Double(numChunks)) * 0.7
-            progressHandler?(progress, "ボーカルを抽出中... (\(chunkIndex + 1)/\(numChunks))")
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: UInt32(file.length)) else {
+            throw SeparationError.invalidAudioFormat("Buffer creation failed")
         }
 
-        return (vocalLeftReal, vocalLeftImag, vocalRightReal, vocalRightImag)
+        try file.read(into: buffer)
+
+        guard let channelData = buffer.floatChannelData else {
+            throw SeparationError.invalidAudioFormat("No channel data")
+        }
+
+        let frameCount = Int(buffer.frameLength)
+        let left = Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+        let right = buffer.format.channelCount > 1 ?
+            Array(UnsafeBufferPointer(start: channelData[1], count: frameCount)) : left
+
+        return (left, right)
     }
 
-    /// Extract chunk for CoreML input (complex STFT format) - optimized with dataPointer
-    private func extractChunkComplex(
-        leftReal: [[Float]], leftImag: [[Float]],
-        rightReal: [[Float]], rightImag: [[Float]],
-        startFrame: Int,
-        endFrame: Int,
-        targetSize: Int
-    ) -> MLMultiArray {
+    private func demix(
+        left: [Float],
+        right: [Float],
+        denoise: Bool,
+        margin: Int = 44100,
+        chunks: Int = 15,
+        progressHandler: ProgressHandler? = nil
+    ) throws -> [Float] {
+        let samples = left.count
+        let segmentSize = chunks * targetSampleRate
 
-        let freqBins = 2048
-        let actualSize = endFrame - startFrame
-        let srcFreqBins = leftReal.isEmpty ? 0 : leftReal[0].count
+        var actualMargin = margin
+        if actualMargin > segmentSize {
+            actualMargin = segmentSize
+        }
 
-        // Create MLMultiArray [1, 4, 2048, 256]
-        let inputArray = try! MLMultiArray(
-            shape: [1, 4, freqBins, targetSize] as [NSNumber],
-            dataType: .float32
-        )
+        // Segment division
+        var segments: [(start: Int, data: ([Float], [Float]))] = []
+        var counter = -1
+        var skip = 0
 
-        // Use subscript access for correctness (temporarily revert optimization)
-        for t in 0..<targetSize {
-            for f in 0..<freqBins {
-                let frameIdx = startFrame + t
-                if t < actualSize && f < srcFreqBins && frameIdx < leftReal.count {
-                    // Channel 0: Left Real
-                    inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftReal[frameIdx][f])
-                    // Channel 1: Left Imag
-                    inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftImag[frameIdx][f])
-                    // Channel 2: Right Real
-                    inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightReal[frameIdx][f])
-                    // Channel 3: Right Imag
-                    inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightImag[frameIdx][f])
+        while skip < samples {
+            counter += 1
+            let sMargin = counter == 0 ? 0 : actualMargin
+            let end = min(skip + segmentSize + actualMargin, samples)
+            let start = skip - sMargin
+
+            let leftSeg = Array(left[max(0, start)..<end])
+            let rightSeg = Array(right[max(0, start)..<end])
+
+            if start < 0 {
+                let padSize = -start
+                let leftPadded = [Float](repeating: 0, count: padSize) + leftSeg
+                let rightPadded = [Float](repeating: 0, count: padSize) + rightSeg
+                segments.append((skip, (leftPadded, rightPadded)))
+            } else {
+                segments.append((skip, (leftSeg, rightSeg)))
+            }
+
+            if end >= samples { break }
+            skip += segmentSize
+        }
+
+        // Process each segment
+        var chunkedSources: [[Float]] = []
+        let trim = nFFT / 2
+        let genSize = chunkSize - 2 * trim
+
+        for (segIdx, (_, (leftSeg, rightSeg))) in segments.enumerated() {
+            let nSample = leftSeg.count
+            let pad = genSize - nSample % genSize
+
+            // Padding
+            let leftPadded = [Float](repeating: 0, count: trim) + leftSeg + [Float](repeating: 0, count: pad + trim)
+            let rightPadded = [Float](repeating: 0, count: trim) + rightSeg + [Float](repeating: 0, count: pad + trim)
+
+            // Split into chunks
+            var mixWaves: [([Float], [Float])] = []
+            var i = 0
+            while i < nSample + pad {
+                let leftChunk = Array(leftPadded[i..<(i + chunkSize)])
+                let rightChunk = Array(rightPadded[i..<(i + chunkSize)])
+                mixWaves.append((leftChunk, rightChunk))
+                i += genSize
+            }
+
+            // Inference
+            var tarWaves: [[Float]] = []
+
+            for (leftWave, rightWave) in mixWaves {
+                let spek = stft(left: leftWave, right: rightWave)
+
+                let specPred: MLMultiArray
+                if denoise {
+                    let predPos = try predict(spek)
+                    let negSpek = negateMultiArray(spek)
+                    let predNeg = try predict(negSpek)
+                    specPred = averagePredictions(predPos, negPredNeg: predNeg)
                 } else {
-                    inputArray[[0, 0, f, t] as [NSNumber]] = 0
-                    inputArray[[0, 1, f, t] as [NSNumber]] = 0
-                    inputArray[[0, 2, f, t] as [NSNumber]] = 0
-                    inputArray[[0, 3, f, t] as [NSNumber]] = 0
+                    specPred = try predict(spek)
                 }
+
+                let waves = istft(specPred)
+                tarWaves.append(waves)
+            }
+
+            // Combine
+            var tarSignal = [Float](repeating: 0, count: (nSample + pad))
+            for (waveIdx, wave) in tarWaves.enumerated() {
+                let startIdx = waveIdx * genSize
+                let trimmedWave = Array(wave[trim..<(wave.count - trim)])
+                for (i, val) in trimmedWave.enumerated() {
+                    if startIdx + i < tarSignal.count {
+                        tarSignal[startIdx + i] = val
+                    }
+                }
+            }
+            tarSignal = Array(tarSignal[0..<nSample])
+
+            // Margin processing
+            let cutStart = segIdx == 0 ? 0 : actualMargin
+            let cutEnd = segIdx == segments.count - 1 ? tarSignal.count : tarSignal.count - actualMargin
+
+            if cutEnd > cutStart {
+                chunkedSources.append(Array(tarSignal[cutStart..<cutEnd]))
+            }
+
+            // Progress update
+            let progress = 0.2 + (Double(segIdx + 1) / Double(segments.count)) * 0.7
+            progressHandler?(progress, "ボーカルを抽出中... (\(segIdx + 1)/\(segments.count))")
+            logger.info("   進捗: \(segIdx + 1)/\(segments.count)")
+        }
+
+        return chunkedSources.flatMap { $0 }
+    }
+
+    /// STFT: PyTorch compatible
+    private func stft(left: [Float], right: [Float]) -> MLMultiArray {
+        let inputArray = try! MLMultiArray(shape: [1, 4, dimF, dimT] as [NSNumber], dataType: .float32)
+
+        let numFrames = dimT
+
+        for t in 0..<numFrames {
+            let startIdx = t * hop
+            let endIdx = min(startIdx + nFFT, left.count)
+
+            // Left channel
+            var leftFrame = [Float](repeating: 0, count: nFFT)
+            for i in 0..<min(nFFT, endIdx - startIdx) {
+                leftFrame[i] = left[startIdx + i]
+            }
+
+            // Right channel
+            var rightFrame = [Float](repeating: 0, count: nFFT)
+            for i in 0..<min(nFFT, endIdx - startIdx) {
+                rightFrame[i] = right[startIdx + i]
+            }
+
+            // Apply window
+            var leftWindowed = [Float](repeating: 0, count: nFFT)
+            var rightWindowed = [Float](repeating: 0, count: nFFT)
+            vDSP_vmul(leftFrame, 1, window, 1, &leftWindowed, 1, vDSP_Length(nFFT))
+            vDSP_vmul(rightFrame, 1, window, 1, &rightWindowed, 1, vDSP_Length(nFFT))
+
+            // DFT
+            var leftReal = [Float](repeating: 0, count: nFFT)
+            var leftImag = [Float](repeating: 0, count: nFFT)
+            var rightReal = [Float](repeating: 0, count: nFFT)
+            var rightImag = [Float](repeating: 0, count: nFFT)
+            var zeroImag = [Float](repeating: 0, count: nFFT)
+
+            vDSP_DFT_Execute(dftSetupForward!, &leftWindowed, &zeroImag, &leftReal, &leftImag)
+            vDSP_DFT_Execute(dftSetupForward!, &rightWindowed, &zeroImag, &rightReal, &rightImag)
+
+            // Store in MLMultiArray (up to dim_f)
+            for f in 0..<dimF {
+                inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftReal[f])
+                inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftImag[f])
+                inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightReal[f])
+                inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightImag[f])
             }
         }
 
         return inputArray
     }
 
-    /// Extract complex mask from model output (optimized with dataPointer)
-    private func extractChannelComplex(_ output: MLMultiArray, realChannel: Int, imagChannel: Int, actualSize: Int) -> (real: [[Float]], imag: [[Float]]) {
-        let freqBins = 2048
-        let timeFrames = 256  // chunkSize
-
-        // Get strides for memory layout: [1, 4, 2048, 256]
-        let strides = output.strides.map { $0.intValue }
-        let s0 = strides[0]  // batch stride
-        let s1 = strides[1]  // channel stride
-        let s2 = strides[2]  // frequency stride
-        let s3 = strides[3]  // time stride
-
-        var realFrames: [[Float]] = []
-        var imagFrames: [[Float]] = []
-
-        // Debug: Log output dataType once
-        struct OutputTypeLogger {
-            static var logged = false
-        }
-        if !OutputTypeLogger.logged {
-            print("📊 [OUTPUT_DEBUG] dataType=\(output.dataType.rawValue), shape=\(output.shape), strides=\(output.strides)")
-            OutputTypeLogger.logged = true
-        }
-
-        // Use subscript access for correctness (temporarily revert optimization)
-        for t in 0..<actualSize {
-            var realFrame: [Float] = []
-            var imagFrame: [Float] = []
-            for f in 0..<freqBins {
-                let realVal = output[[0, realChannel, f, t] as [NSNumber]].floatValue
-                let imagVal = output[[0, imagChannel, f, t] as [NSNumber]].floatValue
-                realFrame.append(realVal)
-                imagFrame.append(imagVal)
-            }
-            realFrames.append(realFrame)
-            imagFrames.append(imagFrame)
-        }
-
-        return (realFrames, imagFrames)
-    }
-
-    private var chunkCounter = 0
-
-    private func predictChunk(_ input: MLMultiArray) throws -> MLMultiArray {
-        chunkCounter += 1
-
-        // Log input stats (sample first few values) - POC compatible format
-        let inputStats = computeMLArrayStats(input)
-        if self.chunkCounter <= 3 {
-            logger.info("🔢 [MODEL_INPUT] chunk=\(self.chunkCounter), shape=\(input.shape), min=\(inputStats.min), max=\(inputStats.max), mean=\(inputStats.mean)")
-
-            // Sample first channel values for debugging
-            var sampleValues: [Float] = []
-            for f in 0..<min(5, 2048) {
-                let value = input[[0, 0, f, 0] as [NSNumber]].floatValue
-                sampleValues.append(value)
-            }
-            logger.info("🔢 [INPUT_CH0_SAMPLE] first 5 freq bins: \(sampleValues)")
-        }
-
+    /// CoreML prediction
+    private func predict(_ input: MLMultiArray) throws -> MLMultiArray {
         let inputProvider = try MLDictionaryFeatureProvider(dictionary: [
-            "input_1": MLFeatureValue(multiArray: input)
+            "input": MLFeatureValue(multiArray: input)
         ])
 
         let output = try model.prediction(from: inputProvider)
 
-        guard let outputArray = output.featureValue(for: "var_992")?.multiArrayValue else {
-            throw SeparationError.predictionFailed("Failed to get output")
-        }
-
-        // Log output stats - POC compatible format
-        let outputStats = computeMLArrayStats(outputArray)
-        if self.chunkCounter <= 3 {
-            logger.info("🔢 [MODEL_OUTPUT] chunk=\(self.chunkCounter), shape=\(outputArray.shape), min=\(outputStats.min), max=\(outputStats.max), mean=\(outputStats.mean)")
-
-            // Sample output channel values for debugging
-            for channel in 0..<4 {
-                var sampleValues: [Float] = []
-                for f in 0..<min(5, 2048) {
-                    let value = outputArray[[0, channel, f, 0] as [NSNumber]].floatValue
-                    sampleValues.append(value)
-                }
-                logger.info("🔢 [OUTPUT_CH\(channel)_SAMPLE] first 5 freq bins: \(sampleValues)")
-            }
-        }
-
-        return outputArray
-    }
-
-    private func extractChannelMask(_ output: MLMultiArray, channel: Int, actualSize: Int) -> [[Float]] {
-        var mask: [[Float]] = []
-
-        for t in 0..<actualSize {
-            var frame: [Float] = []
-            for f in 0..<2048 {
-                let value = output[[0, channel, f, t] as [NSNumber]].floatValue
-                frame.append(value)
-            }
-            mask.append(frame)
-        }
-
-        // DEBUG: Log mask statistics (POC compatible)
-        if mask.count > 0 && mask[0].count > 0 && chunkCounter <= 3 {
-            let firstValue = mask[0][0]
-            let avgValue = mask[0].reduce(0, +) / Float(mask[0].count)
-            let maxValue = mask[0].max() ?? 0
-            let minValue = mask[0].min() ?? 0
-            logger.info("🎭 [MASK_CH\(channel)] first=\(firstValue), avg=\(avgValue), min=\(minValue), max=\(maxValue)")
-        }
-
-        return mask
-    }
-
-    private func reshape2D(_ flatData: [[Float]], frequencyBins: Int) -> [[Float]] {
-        var result: [[Float]] = Array(repeating: [], count: frequencyBins)
-
-        for frame in flatData {
-            for (f, value) in frame.enumerated() where f < frequencyBins {
-                result[f].append(value)
-            }
+        guard let result = output.featureValue(for: "var_1144")?.multiArrayValue else {
+            throw SeparationError.predictionFailed("Output not found")
         }
 
         return result
     }
 
-    private func trimPhase(_ phase: [[Float]], targetBins: Int) -> [[Float]] {
-        let timeFrames = phase[0].count
-        var trimmed: [[Float]] = Array(
-            repeating: Array(repeating: 0, count: timeFrames),
-            count: targetBins
-        )
+    /// iSTFT: PyTorch compatible
+    private func istft(_ specPred: MLMultiArray) -> [Float] {
+        var output = [Float](repeating: 0, count: chunkSize)
+        var windowSum = [Float](repeating: 0, count: chunkSize)
 
-        let actualBins = min(phase.count, targetBins)
-        for f in 0..<actualBins {
-            trimmed[f] = phase[f]
-        }
+        for t in 0..<dimT {
+            var realFull = [Float](repeating: 0, count: nFFT)
+            var imagFull = [Float](repeating: 0, count: nFFT)
 
-        return trimmed
-    }
+            // Positive frequencies (left channel only)
+            for f in 0..<dimF {
+                realFull[f] = specPred[[0, 0, f, t] as [NSNumber]].floatValue
+                imagFull[f] = specPred[[0, 1, f, t] as [NSNumber]].floatValue
+            }
 
-    private func applyComplexMask(
-        spectrogram: STFTProcessorV2.SpectrogramData,
-        mask: STFTProcessorV2.SpectrogramData
-    ) -> STFTProcessorV2.SpectrogramData {
+            // Frequency padding (dim_f to nBins)
+            for f in dimF..<nBins {
+                realFull[f] = 0
+                imagFull[f] = 0
+            }
 
-        let freqBins = min(spectrogram.frequencyBins, mask.frequencyBins)
-        let timeFrames = min(spectrogram.timeFrames, mask.timeFrames)
+            // Negative frequencies (conjugate symmetry)
+            for f in 1..<(nBins - 1) {
+                let mirrorIdx = nFFT - f
+                realFull[mirrorIdx] = realFull[f]
+                imagFull[mirrorIdx] = -imagFull[f]
+            }
 
-        var maskedMagnitude: [[Float]] = Array(
-            repeating: Array(repeating: 0, count: timeFrames),
-            count: freqBins
-        )
+            // IDFT
+            var realOut = [Float](repeating: 0, count: nFFT)
+            var imagOut = [Float](repeating: 0, count: nFFT)
+            vDSP_DFT_Execute(dftSetupInverse!, &realFull, &imagFull, &realOut, &imagOut)
 
-        var maskedPhase: [[Float]] = Array(
-            repeating: Array(repeating: 0, count: timeFrames),
-            count: freqBins
-        )
+            // Scaling (1/N)
+            var scale = 1.0 / Float(nFFT)
+            vDSP_vsmul(realOut, 1, &scale, &realOut, 1, vDSP_Length(nFFT))
 
-        for f in 0..<freqBins {
-            for t in 0..<timeFrames {
-                maskedMagnitude[f][t] = spectrogram.magnitude[f][t] * mask.magnitude[f][t]
-                maskedPhase[f][t] = spectrogram.phase[f][t]
+            // OLA
+            let startIdx = t * hop
+            for i in 0..<nFFT {
+                let outIdx = startIdx + i
+                if outIdx < chunkSize {
+                    output[outIdx] += realOut[i] * window[i]
+                    windowSum[outIdx] += window[i] * window[i]
+                }
             }
         }
 
-        return STFTProcessorV2.SpectrogramData(
-            magnitude: maskedMagnitude,
-            phase: maskedPhase
-        )
-    }
-
-    // MARK: - Statistics Helpers
-
-    private struct Stats {
-        let min: Float
-        let max: Float
-        let mean: Float
-        let rms: Float
-    }
-
-    private func computeStats(_ samples: [Float]) -> Stats {
-        guard !samples.isEmpty else {
-            return Stats(min: 0, max: 0, mean: 0, rms: 0)
+        // Normalization
+        for i in 0..<chunkSize {
+            if windowSum[i] > 1e-8 {
+                output[i] /= windowSum[i]
+            }
         }
-        let minVal = samples.min() ?? 0
-        let maxVal = samples.max() ?? 0
-        let sum = samples.reduce(0, +)
-        let mean = sum / Float(samples.count)
-        let sumSquared = samples.reduce(0) { $0 + $1 * $1 }
-        let rms = sqrtf(sumSquared / Float(samples.count))
-        return Stats(min: minVal, max: maxVal, mean: mean, rms: rms)
+
+        return output
     }
 
-    private func computeSpectrogramStats(_ spectrogram: [[Float]]) -> Stats {
-        var allValues: [Float] = []
-        for bin in spectrogram {
-            allValues.append(contentsOf: bin)
-        }
-        return computeStats(allValues)
-    }
-
-    private func computeMLArrayStats(_ array: MLMultiArray) -> Stats {
+    private func negateMultiArray(_ array: MLMultiArray) -> MLMultiArray {
+        let result = try! MLMultiArray(shape: array.shape, dataType: .float32)
         let count = array.count
-        guard count > 0 else {
-            return Stats(min: 0, max: 0, mean: 0, rms: 0)
+        for i in 0..<count {
+            result[i] = NSNumber(value: -array[i].floatValue)
         }
+        return result
+    }
 
-        var minVal: Float = .greatestFiniteMagnitude
-        var maxVal: Float = -.greatestFiniteMagnitude
-        var sum: Float = 0
-
-        // Use type-safe access based on MLMultiArray dataType
-        switch array.dataType {
-        case .float32:
-            let ptr = array.dataPointer.assumingMemoryBound(to: Float.self)
-            for i in 0..<count {
-                let val = ptr[i]
-                minVal = Swift.min(minVal, val)
-                maxVal = Swift.max(maxVal, val)
-                sum += val
-            }
-        case .float16:
-            // Float16 requires subscript access for safe conversion
-            let sampleCount = min(count, 1000)  // Sample first 1000 for performance
-            for i in 0..<sampleCount {
-                let val = array[i].floatValue
-                minVal = Swift.min(minVal, val)
-                maxVal = Swift.max(maxVal, val)
-                sum += val
-            }
-            let mean = sum / Float(sampleCount)
-            return Stats(min: minVal, max: maxVal, mean: mean, rms: 0)
-        default:
-            // Fallback to subscript access for other types
-            let sampleCount = min(count, 1000)
-            for i in 0..<sampleCount {
-                let val = array[i].floatValue
-                minVal = Swift.min(minVal, val)
-                maxVal = Swift.max(maxVal, val)
-                sum += val
-            }
-            let mean = sum / Float(sampleCount)
-            return Stats(min: minVal, max: maxVal, mean: mean, rms: 0)
+    private func averagePredictions(_ pos: MLMultiArray, negPredNeg: MLMultiArray) -> MLMultiArray {
+        let result = try! MLMultiArray(shape: pos.shape, dataType: .float32)
+        let count = pos.count
+        for i in 0..<count {
+            let posVal = pos[i].floatValue
+            let negVal = -negPredNeg[i].floatValue
+            result[i] = NSNumber(value: (posVal + negVal) * 0.5)
         }
-
-        let mean = sum / Float(count)
-        return Stats(min: minVal, max: maxVal, mean: mean, rms: 0)
+        return result
     }
 }
