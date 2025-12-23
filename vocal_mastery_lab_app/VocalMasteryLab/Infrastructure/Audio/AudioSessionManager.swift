@@ -77,15 +77,13 @@ public class AudioSessionManager {
         let audioSession = AVAudioSession.sharedInstance()
 
         do {
-            // Select mode based on audio route and cache it for the session
+            // Select mode and cache it for the session
             // This prevents mode changes during recording (which would cause error -10868)
             let mode = selectOptimalMode(for: audioSession)
             sessionMode = mode
 
             // .playAndRecord: allows recording and playback simultaneously
-            // Mode selection:
-            //   - Headphones connected (Bluetooth or wired): .measurement (precision priority)
-            //   - No headphones (built-in speaker/mic): .videoRecording (volume priority)
+            // .measurement mode: highest precision for pitch detection and audio quality
             // .defaultToSpeaker: plays audio through speaker even when recording
             // .allowBluetooth: supports bluetooth headsets for calls
             // .allowBluetoothA2DP: enables Bluetooth recording (required for Bluetooth microphone)
@@ -100,7 +98,7 @@ public class AudioSessionManager {
             try audioSession.setPreferredSampleRate(44100.0)
 
             // Always set input gain to maximum when possible
-            // Note: .videoRecording has auto-gain but iOS Simulator may not apply it correctly
+            // .measurement mode has no auto-gain, so we set it explicitly
             // Setting gain explicitly ensures consistent recording levels across all environments
             if audioSession.isInputGainSettable {
                 try audioSession.setInputGain(1.0)  // 1.0 = maximum gain
@@ -158,9 +156,7 @@ public class AudioSessionManager {
             let mode = sessionMode ?? selectOptimalMode(for: audioSession)
 
             // .playAndRecord: recording + playback
-            // Mode selection:
-            //   - Headphones (wired or Bluetooth): .measurement (precision priority)
-            //   - Built-in: .videoRecording (volume priority with auto-gain)
+            // .measurement mode: highest precision for pitch detection and audio quality
             // Note: .measurement mode is incompatible with .defaultToSpeaker option
             // so we conditionally include .defaultToSpeaker based on mode
             // .mixWithOthers: allows recording to continue when other apps play audio
@@ -176,7 +172,7 @@ public class AudioSessionManager {
             )
 
             // Always set input gain to maximum when possible
-            // Note: .videoRecording has auto-gain but iOS Simulator may not apply it correctly
+            // .measurement mode has no auto-gain, so we set it explicitly
             // Setting gain explicitly ensures consistent recording levels across all environments
             if audioSession.isInputGainSettable {
                 try audioSession.setInputGain(1.0)  // 1.0 = maximum gain
@@ -465,35 +461,18 @@ public class AudioSessionManager {
     // MARK: - Private Helpers
 
     /// Select optimal audio session mode based on current audio route
-    /// - Returns: .measurement for headphones (wired/Bluetooth), .videoRecording for built-in
+    /// - Returns: .measurement for high precision recording (all audio routes)
     private func selectOptimalMode(for audioSession: AVAudioSession) -> AVAudioSession.Mode {
-        let currentRoute = audioSession.currentRoute
-
-        // Check if headphones (Bluetooth or wired) are connected
-        let hasHeadphones = currentRoute.outputs.contains { output in
-            switch output.portType {
-            case .headphones:           // Wired headphones
-                return true
-            case .bluetoothHFP:         // Bluetooth Hands-Free Profile
-                return true
-            case .bluetoothA2DP:        // Bluetooth Advanced Audio Distribution Profile
-                return true
-            case .bluetoothLE:          // Bluetooth Low Energy
-                return true
-            default:
-                return false
-            }
-        }
-
-        // Select mode based on audio route:
-        // - Headphones (wired or Bluetooth): .measurement (precision priority for pitch detection)
-        // - Built-in speaker/mic: .videoRecording (volume priority with auto-gain)
-        let selectedMode: AVAudioSession.Mode = hasHeadphones ? .measurement : .videoRecording
+        // Always use .measurement mode for maximum audio precision
+        // This provides the most accurate pitch detection and highest quality recording
+        // without any audio processing (no AGC, no noise reduction, no echo cancellation)
+        let selectedMode: AVAudioSession.Mode = .measurement
 
         // Log detected outputs for debugging
+        let currentRoute = audioSession.currentRoute
         let outputTypes = currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ", ")
-        Logger.audio.info("Audio route detection: hasHeadphones=\(hasHeadphones), mode=\(String(describing: selectedMode)), outputs=\(outputTypes)")
-        FileLogger.shared.log(level: "INFO", category: "audio", message: "Audio route: hasHeadphones=\(hasHeadphones), mode=\(String(describing: selectedMode)), outputs=\(outputTypes)")
+        Logger.audio.info("Audio route detection: mode=\(String(describing: selectedMode)), outputs=\(outputTypes)")
+        FileLogger.shared.log(level: "INFO", category: "audio", message: "Audio route: mode=\(String(describing: selectedMode)), outputs=\(outputTypes)")
 
         return selectedMode
     }
