@@ -57,15 +57,17 @@ public final class CoreMLVocalExtractor: VocalExtractorProtocol {
             try fileManager.createDirectory(at: extractedDir, withIntermediateDirectories: true)
         }
 
-        // Generate unique filename
+        // Generate unique filenames
         let timestamp = Int(Date().timeIntervalSince1970)
         let sourceFileName = sourceURL.deletingPathExtension().lastPathComponent
         let vocalFileName = "\(sourceFileName)_vocal_\(timestamp).wav"
+        let instrumentalFileName = "\(sourceFileName)_instrumental_\(timestamp).wav"
         let vocalURL = extractedDir.appendingPathComponent(vocalFileName)
+        let instrumentalURL = extractedDir.appendingPathComponent(instrumentalFileName)
 
-        // Save vocals
+        // Save vocals and instrumental
         do {
-            try engine.save(result: result, to: vocalURL)
+            try engine.save(result: result, vocalsURL: vocalURL, instrumentalURL: instrumentalURL)
         } catch {
             throw VocalExtractionError.extractionFailed("保存失敗: \(error.localizedDescription)")
         }
@@ -75,6 +77,7 @@ public final class CoreMLVocalExtractor: VocalExtractorProtocol {
 
         return VocalExtractionResult(
             vocalFileURL: vocalURL,
+            instrumentalFileURL: instrumentalURL,
             duration: duration
         )
     }

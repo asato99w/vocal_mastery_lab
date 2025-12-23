@@ -142,6 +142,14 @@ public struct VocalExtractionView: View {
                     action: { Task { await viewModel.playVocal() } }
                 )
 
+                if result.instrumentalURL != nil {
+                    PreviewButton(
+                        title: "伴奏",
+                        icon: "music.note.list",
+                        action: { Task { await viewModel.playInstrumental() } }
+                    )
+                }
+
                 Button("停止") {
                     Task { await viewModel.stopPlayback() }
                 }

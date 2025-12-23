@@ -4,10 +4,12 @@ import VocalisDomain
 /// Result of vocal extraction
 public struct VocalExtractionResult {
     public let vocalFileURL: URL
+    public let instrumentalFileURL: URL?
     public let duration: Duration
 
-    public init(vocalFileURL: URL, duration: Duration) {
+    public init(vocalFileURL: URL, instrumentalFileURL: URL? = nil, duration: Duration) {
         self.vocalFileURL = vocalFileURL
+        self.instrumentalFileURL = instrumentalFileURL
         self.duration = duration
     }
 }

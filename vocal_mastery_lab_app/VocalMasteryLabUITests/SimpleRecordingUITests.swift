@@ -162,4 +162,37 @@ final class SimpleRecordingUITests: XCTestCase {
         let listTitle = app.staticTexts[L10n.listTitle]
         XCTAssertTrue(listTitle.waitForExistence(timeout: 5), "Should navigate to recording list")
     }
+
+    // MARK: - 5. Vocal Extraction Navigation
+
+    /// ボーカル抽出ボタンをタップするとボーカル抽出画面に遷移
+    @MainActor
+    func testNavigateToVocalExtraction() throws {
+        let app = launchAppWithResetRecordingCount()
+
+        // Navigate to Recording screen and create a recording
+        app.buttons["HomeRecordButton"].tap()
+
+        let startButton = app.buttons["StartRecordingButton"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
+        startButton.tap()
+
+        let stopButton = app.buttons["StopRecordingButton"]
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1.0)
+        stopButton.tap()
+
+        // ボーカル抽出ボタンをタップ
+        let vocalButton = app.buttons["VocalExtractionButton"]
+        XCTAssertTrue(vocalButton.waitForExistence(timeout: 5), "Vocal extraction button should be visible")
+        vocalButton.tap()
+
+        // ボーカル抽出画面に遷移
+        let extractionTitle = app.navigationBars["ボーカル抽出"]
+        XCTAssertTrue(extractionTitle.waitForExistence(timeout: 5), "Should navigate to vocal extraction screen")
+
+        // 抽出開始ボタンが表示される
+        let startExtractionButton = app.buttons["抽出開始"]
+        XCTAssertTrue(startExtractionButton.waitForExistence(timeout: 3), "Start extraction button should be visible")
+    }
 }

@@ -31,7 +31,10 @@ public struct HomeView: View {
                     // Menu Buttons
                     VStack(spacing: 20) {
                         NavigationLink(destination: RecordingView(
-                            viewModel: DependencyContainer.shared.recordingViewModel
+                            viewModel: DependencyContainer.shared.recordingViewModel,
+                            vocalExtractor: DependencyContainer.shared.vocalExtractor,
+                            extractedAudioRepository: DependencyContainer.shared.extractedAudioRepository,
+                            audioPlayer: DependencyContainer.shared.audioPlayer
                         )) {
                             MenuButton(title: "home.record_button".localized, icon: "mic.fill")
                         }

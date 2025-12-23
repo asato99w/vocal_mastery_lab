@@ -9,9 +9,22 @@ public struct RecordingView: View {
     @State private var showingAlert: Bool = false
     @State private var elapsedTime: TimeInterval = 0
     @State private var timer: Timer?
+    @State private var extractingRecording: Recording?
 
-    public init(viewModel: RecordingViewModel) {
+    private let vocalExtractor: VocalExtractorProtocol
+    private let extractedAudioRepository: ExtractedAudioRepositoryProtocol
+    private let audioPlayer: AudioPlayerProtocol
+
+    public init(
+        viewModel: RecordingViewModel,
+        vocalExtractor: VocalExtractorProtocol,
+        extractedAudioRepository: ExtractedAudioRepositoryProtocol,
+        audioPlayer: AudioPlayerProtocol
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.vocalExtractor = vocalExtractor
+        self.extractedAudioRepository = extractedAudioRepository
+        self.audioPlayer = audioPlayer
     }
 
     public var body: some View {
@@ -112,6 +125,16 @@ public struct RecordingView: View {
                 }
             }
             viewModel.recordingStateVM.cleanup()
+        }
+        .navigationDestination(item: $extractingRecording) { recording in
+            VocalExtractionView(
+                viewModel: VocalExtractionViewModel(
+                    recording: recording,
+                    extractor: vocalExtractor,
+                    extractedAudioRepository: extractedAudioRepository,
+                    audioPlayer: audioPlayer
+                )
+            )
         }
     }
 
@@ -261,7 +284,20 @@ public struct RecordingView: View {
     }
 
     private func vocalExtraction() {
-        // TODO: Implement vocal extraction
+        guard let url = viewModel.lastRecordingURL,
+              let id = viewModel.lastRecordingId,
+              let duration = viewModel.lastRecordingDuration else {
+            return
+        }
+
+        let recording = Recording(
+            id: id,
+            fileURL: url,
+            createdAt: viewModel.lastRecordingDate ?? Date(),
+            duration: Duration(seconds: duration)
+        )
+
+        extractingRecording = recording
     }
 }
 
@@ -282,7 +318,10 @@ struct RecordingView_Previews: PreviewProvider {
                         purchaseUseCase: PreviewMockPurchaseUseCase(),
                         restoreUseCase: PreviewMockRestoreUseCase()
                     )
-                )
+                ),
+                vocalExtractor: PreviewMockVocalExtractor(),
+                extractedAudioRepository: PreviewMockExtractedAudioRepository(),
+                audioPlayer: PreviewMockAudioPlayer()
             )
         }
     }
@@ -347,5 +386,20 @@ private class PreviewMockPurchaseUseCase: PurchaseSubscriptionUseCaseProtocol {
 
 private class PreviewMockRestoreUseCase: RestorePurchasesUseCaseProtocol {
     func execute() async throws {}
+}
+
+private class PreviewMockVocalExtractor: VocalExtractorProtocol {
+    func extract(from sourceURL: URL, progressHandler: @escaping (Double, String) -> Void) async throws -> VocalExtractionResult {
+        VocalExtractionResult(vocalFileURL: sourceURL, duration: Duration(seconds: 10))
+    }
+}
+
+private class PreviewMockExtractedAudioRepository: ExtractedAudioRepositoryProtocol {
+    func save(_ audio: ExtractedAudio) async throws {}
+    func findById(_ id: ExtractedAudioId) async throws -> ExtractedAudio? { nil }
+    func findByRecording(_ recordingId: RecordingId) async throws -> [ExtractedAudio] { [] }
+    func findAll() async throws -> [ExtractedAudio] { [] }
+    func delete(_ id: ExtractedAudioId) async throws {}
+    func deleteByRecording(_ recordingId: RecordingId) async throws {}
 }
 #endif
