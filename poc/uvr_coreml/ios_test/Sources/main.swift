@@ -3,9 +3,9 @@ import CoreML
 import AVFoundation
 import Accelerate
 
-// MDXNet ボーカル分離テスト
+// MDXNet Voc_FT ボーカル分離テスト
 do {
-    try runMDXNetTest()
+    try runMDXNetVocFTTest()
 } catch {
     print("❌ エラー: \(error.localizedDescription)")
     if let nsError = error as NSError? {
