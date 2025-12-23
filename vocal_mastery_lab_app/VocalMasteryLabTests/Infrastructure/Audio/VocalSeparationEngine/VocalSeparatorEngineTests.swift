@@ -23,7 +23,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
     func testModelConfiguration_default_hasExpectedValues() {
         let config = VocalSeparatorEngine.ModelConfiguration.default
 
-        XCTAssertEqual(config.fftSize, 6144)
+        XCTAssertEqual(config.fftSize, 7680)  // Voc_FT model
         XCTAssertEqual(config.hopSize, 1024)
         XCTAssertEqual(config.sampleRate, 44100)
         XCTAssertEqual(config.chunkSize, 256)
@@ -105,9 +105,9 @@ final class VocalSeparatorEngineTests: XCTestCase {
         // This test requires the actual CoreML model
         // Try compiled model first, then package
         var modelURL: URL?
-        if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlmodelc") {
+        if let url = Bundle.main.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlmodelc") {
             modelURL = url
-        } else if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+        } else if let url = Bundle.main.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlpackage") {
             modelURL = url
         }
 
@@ -148,9 +148,9 @@ final class VocalSeparatorEngineTests: XCTestCase {
     func testSave_withResult_createsFile() throws {
         // Try compiled model first, then package
         var modelURL: URL?
-        if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlmodelc") {
+        if let url = Bundle.main.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlmodelc") {
             modelURL = url
-        } else if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+        } else if let url = Bundle.main.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlpackage") {
             modelURL = url
         }
 
@@ -185,9 +185,9 @@ final class VocalSeparatorEngineTests: XCTestCase {
     func testSeparate_outputDiffersFromInput() throws {
         // Try compiled model first, then package
         var modelURL: URL?
-        if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlmodelc") {
+        if let url = Bundle.main.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlmodelc") {
             modelURL = url
-        } else if let url = Bundle.main.url(forResource: "UVR_MDX_NET", withExtension: "mlpackage") {
+        } else if let url = Bundle.main.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlpackage") {
             modelURL = url
         }
 
@@ -343,13 +343,13 @@ final class VocalSeparatorEngineTests: XCTestCase {
 
         // テストBundle内のモデルを探す（コンパイル済み.mlmodelcを優先）
         var modelURL: URL?
-        if let url = bundle.url(forResource: "UVR-MDX-NET-Inst_Main", withExtension: "mlmodelc") {
+        if let url = bundle.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlmodelc") {
             modelURL = url
-        } else if let url = bundle.url(forResource: "UVR-MDX-NET-Inst_Main", withExtension: "mlpackage") {
+        } else if let url = bundle.url(forResource: "UVR-MDX-NET-Voc_FT", withExtension: "mlpackage") {
             modelURL = url
         }
         guard let modelURL = modelURL else {
-            throw XCTSkip("Model not found in bundle. Add UVR-MDX-NET-Inst_Main to test target.")
+            throw XCTSkip("Model not found in bundle. Add UVR-MDX-NET-Voc_FT to test target.")
         }
 
         print("📁 Audio: \(testAudioURL.path)")

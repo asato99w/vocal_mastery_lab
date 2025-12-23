@@ -10,16 +10,16 @@ private let logger = Logger(subsystem: "com.kazuasato.VocalMasteryLab", category
 /// Based on UVR-MDX-NET implementation (Python compatible)
 final class VocalSeparatorEngine {
 
-    // MARK: - Constants (Python実装と同じ)
+    // MARK: - Constants (Voc_FTモデル用パラメータ)
 
-    private let nFFT: Int = 6144
-    private let dimF: Int = 2048
+    private let nFFT: Int = 7680
+    private let dimF: Int = 3072
     private let dimT: Int = 256  // 2^8
     private let hop: Int = 1024
     private let targetSampleRate: Int = 44100
     private let dimC: Int = 4  // ステレオ x (実部+虚部)
 
-    private var nBins: Int { nFFT / 2 + 1 }  // 3073
+    private var nBins: Int { nFFT / 2 + 1 }  // 3841
     private var chunkSize: Int { hop * (dimT - 1) }  // 261120
 
     // MARK: - Properties
@@ -38,7 +38,7 @@ final class VocalSeparatorEngine {
         let chunkSize: Int
 
         static let `default` = ModelConfiguration(
-            fftSize: 6144,
+            fftSize: 7680,
             hopSize: 1024,
             sampleRate: 44100,
             chunkSize: 256
@@ -135,18 +135,14 @@ final class VocalSeparatorEngine {
         let (left, right) = try loadAudio(url: audioURL)
         logger.info("📥 [AUDIO_LOADED] frames=\(left.count)")
 
-        // 2. Demix (separate)
+        // 2. Demix (separate) - Voc_FTモデルはボーカルを直接出力
         progressHandler?(0.2, "ボーカルを抽出中...")
-        let instrumental = try demix(left: left, right: right, denoise: true, progressHandler: progressHandler)
+        let vocalsExtracted = try demix(left: left, right: right, denoise: true, progressHandler: progressHandler)
 
-        // 3. Vocals = Original - Instrumental
-        var vocalsLeft = [Float](repeating: 0, count: left.count)
-        var vocalsRight = [Float](repeating: 0, count: right.count)
-
-        for i in 0..<min(left.count, instrumental.count) {
-            vocalsLeft[i] = left[i] - instrumental[i]
-            vocalsRight[i] = right[i] - instrumental[i]
-        }
+        // 3. Voc_FTはボーカルモデル → モデル出力がボーカル
+        // 左右チャンネルは同じ処理結果を使用（モノラル処理）
+        let vocalsLeft = vocalsExtracted
+        let vocalsRight = vocalsExtracted
 
         let vocals = AudioProcessor.AudioData(
             samples: [vocalsLeft, vocalsRight],
@@ -373,8 +369,8 @@ final class VocalSeparatorEngine {
 
         let output = try model.prediction(from: inputProvider)
 
-        guard let result = output.featureValue(for: "var_1144")?.multiArrayValue else {
-            throw SeparationError.predictionFailed("Output not found")
+        guard let result = output.featureValue(for: "var_992")?.multiArrayValue else {
+            throw SeparationError.predictionFailed("Output 'var_992' not found")
         }
 
         return result

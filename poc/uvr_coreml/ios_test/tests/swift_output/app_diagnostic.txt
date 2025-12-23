@@ -1,0 +1,8 @@
+===== VOCAL SEPARATION DIAGNOSTIC =====
+Input RMS: 0.5385149
+Output RMS: 0.17076853
+Correlation: 0.75865686
+Average Difference: 0.3343177
+Input samples: 44100
+Output samples: 44100
+=======================================

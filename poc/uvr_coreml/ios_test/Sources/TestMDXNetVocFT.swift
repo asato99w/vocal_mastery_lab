@@ -11,7 +11,7 @@ func runMDXNetVocFTTest() throws {
     let currentDir = FileManager.default.currentDirectoryPath
     let baseURL = URL(fileURLWithPath: currentDir)
     let modelPath = baseURL.appendingPathComponent("models/coreml/UVR-MDX-NET-Voc_FT.mlpackage")
-    let inputPath = baseURL.appendingPathComponent("tests/output/hollow_crown.wav")
+    let inputPath = baseURL.appendingPathComponent("tests/output/hollow_crown_15s.wav")
     let outputDir = baseURL.appendingPathComponent("tests/swift_output")
 
     try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
@@ -27,8 +27,8 @@ func runMDXNetVocFTTest() throws {
     print("✅ 完了: \(String(format: "%.2f", elapsed))秒")
 
     // 保存
-    let vocalsPath = outputDir.appendingPathComponent("hollow_crown_vocals_vocft.wav")
-    let instPath = outputDir.appendingPathComponent("hollow_crown_instrumental_vocft.wav")
+    let vocalsPath = outputDir.appendingPathComponent("hollow_crown_15s_vocals_vocft.wav")
+    let instPath = outputDir.appendingPathComponent("hollow_crown_15s_instrumental_vocft.wav")
 
     try saveAudioVocFT(vocals, to: vocalsPath, sampleRate: 44100)
     try saveAudioVocFT(instrumental, to: instPath, sampleRate: 44100)
