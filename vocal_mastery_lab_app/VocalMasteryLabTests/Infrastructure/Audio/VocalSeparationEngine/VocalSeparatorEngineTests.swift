@@ -45,7 +45,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
 
     // MARK: - SeparationResult Tests
 
-    func testSeparationResult_containsVocals() {
+    func testSeparationResult_containsVocalsAndInstrumental() {
         let samples: [[Float]] = [[1.0, 2.0], [3.0, 4.0]]
         let audioData = AudioProcessor.AudioData(
             samples: samples,
@@ -53,10 +53,12 @@ final class VocalSeparatorEngineTests: XCTestCase {
             frameCount: 2
         )
 
-        let result = VocalSeparatorEngine.SeparationResult(vocals: audioData)
+        let result = VocalSeparatorEngine.SeparationResult(vocals: audioData, instrumental: audioData)
 
         XCTAssertEqual(result.vocals.channelCount, 2)
         XCTAssertEqual(result.vocals.frameCount, 2)
+        XCTAssertEqual(result.instrumental.channelCount, 2)
+        XCTAssertEqual(result.instrumental.frameCount, 2)
     }
 
     // MARK: - SeparationError Tests
@@ -134,9 +136,13 @@ final class VocalSeparatorEngineTests: XCTestCase {
             progressUpdates.append((progress, stage))
         }
 
-        // Verify output
+        // Verify vocals output
         XCTAssertGreaterThan(result.vocals.frameCount, 0)
         XCTAssertEqual(result.vocals.channelCount, 2)
+
+        // Verify instrumental output
+        XCTAssertGreaterThan(result.instrumental.frameCount, 0)
+        XCTAssertEqual(result.instrumental.channelCount, 2)
 
         // Verify progress was reported
         XCTAssertFalse(progressUpdates.isEmpty)
@@ -361,20 +367,33 @@ final class VocalSeparatorEngineTests: XCTestCase {
         let result = try engine.separate(audioURL: testAudioURL, progressHandler: nil)
         print("✅ 抽出完了")
 
-        // シミュレータ内の一時ディレクトリに保存
-        let outputURL = tempDirectory.appendingPathComponent("app_vocals_15s.wav")
-        try engine.save(result: result, to: outputURL)
-        print("💾 保存: \(outputURL.path)")
+        // シミュレータ内の一時ディレクトリに保存（ボーカル＋伴奏）
+        let vocalsURL = tempDirectory.appendingPathComponent("app_vocals_15s.wav")
+        let instrumentalURL = tempDirectory.appendingPathComponent("app_instrumental_15s.wav")
+        try engine.save(result: result, vocalsURL: vocalsURL, instrumentalURL: instrumentalURL)
+        print("💾 ボーカル保存: \(vocalsURL.path)")
+        print("💾 伴奏保存: \(instrumentalURL.path)")
 
         // 結果をXCTest attachmentとして保存（外部から取得可能）
-        let attachment = XCTAttachment(contentsOfFile: outputURL)
-        attachment.name = "app_vocals_15s.wav"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        let vocalsAttachment = XCTAttachment(contentsOfFile: vocalsURL)
+        vocalsAttachment.name = "app_vocals_15s.wav"
+        vocalsAttachment.lifetime = .keepAlways
+        add(vocalsAttachment)
 
+        let instrumentalAttachment = XCTAttachment(contentsOfFile: instrumentalURL)
+        instrumentalAttachment.name = "app_instrumental_15s.wav"
+        instrumentalAttachment.lifetime = .keepAlways
+        add(instrumentalAttachment)
+
+        // Verify vocals
         XCTAssertGreaterThan(result.vocals.frameCount, 0)
         XCTAssertEqual(result.vocals.channelCount, 2)
-        print("✅ フレーム数: \(result.vocals.frameCount)")
+        print("✅ ボーカル フレーム数: \(result.vocals.frameCount)")
+
+        // Verify instrumental
+        XCTAssertGreaterThan(result.instrumental.frameCount, 0)
+        XCTAssertEqual(result.instrumental.channelCount, 2)
+        print("✅ 伴奏 フレーム数: \(result.instrumental.frameCount)")
     }
 
     private func normalize(_ samples: [Float]) -> [Float] {

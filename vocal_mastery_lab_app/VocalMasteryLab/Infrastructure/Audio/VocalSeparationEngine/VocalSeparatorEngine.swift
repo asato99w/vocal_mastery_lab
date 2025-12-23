@@ -47,6 +47,7 @@ final class VocalSeparatorEngine {
 
     struct SeparationResult {
         let vocals: AudioProcessor.AudioData
+        let instrumental: AudioProcessor.AudioData
     }
 
     enum SeparationError: Error, LocalizedError {
@@ -150,20 +151,56 @@ final class VocalSeparatorEngine {
             frameCount: vocalsLeft.count
         )
 
+        // 4. 伴奏を計算: instrumental = original - vocals
+        progressHandler?(0.95, "伴奏を計算中...")
+        let frameCount = min(left.count, vocalsExtracted.count)
+        var instrumentalLeft = [Float](repeating: 0, count: frameCount)
+        var instrumentalRight = [Float](repeating: 0, count: frameCount)
+
+        // vDSP_vsub: C = B - A (第1引数を第2引数から引く)
+        vDSP_vsub(vocalsExtracted, 1, left, 1, &instrumentalLeft, 1, vDSP_Length(frameCount))
+        vDSP_vsub(vocalsExtracted, 1, right, 1, &instrumentalRight, 1, vDSP_Length(frameCount))
+
+        let instrumental = AudioProcessor.AudioData(
+            samples: [instrumentalLeft, instrumentalRight],
+            sampleRate: Double(targetSampleRate),
+            frameCount: frameCount
+        )
+
         // Log output stats
-        let rms = sqrt(vocalsLeft.reduce(0) { $0 + $1 * $1 } / Float(vocalsLeft.count))
-        logger.info("🎵 [OUTPUT_STATS] rms=\(rms), frames=\(vocals.frameCount)")
+        let vocalsRms = sqrt(vocalsLeft.reduce(0) { $0 + $1 * $1 } / Float(vocalsLeft.count))
+        let instRms = sqrt(instrumentalLeft.reduce(0) { $0 + $1 * $1 } / Float(instrumentalLeft.count))
+        logger.info("🎤 [VOCALS_STATS] rms=\(vocalsRms), frames=\(vocals.frameCount)")
+        logger.info("🎸 [INSTRUMENTAL_STATS] rms=\(instRms), frames=\(instrumental.frameCount)")
         logger.info("✅ [SEPARATION_COMPLETE]")
 
         progressHandler?(1.0, "完了")
 
-        return SeparationResult(vocals: vocals)
+        return SeparationResult(vocals: vocals, instrumental: instrumental)
     }
 
-    /// Save separated vocals to file
-    func save(result: SeparationResult, to url: URL) throws {
+    /// Save separated audio to files
+    /// - Parameters:
+    ///   - result: The separation result containing vocals and instrumental
+    ///   - vocalsURL: URL for saving the vocals track
+    ///   - instrumentalURL: Optional URL for saving the instrumental track
+    func save(result: SeparationResult, vocalsURL: URL, instrumentalURL: URL? = nil) throws {
+        // Save vocals
         let normalizedVocals = AudioProcessor.normalize(result.vocals)
-        try AudioProcessor.saveAudio(normalizedVocals, to: url)
+        try AudioProcessor.saveAudio(normalizedVocals, to: vocalsURL)
+        logger.info("🎤 [SAVED] Vocals: \(vocalsURL.lastPathComponent)")
+
+        // Save instrumental if URL provided
+        if let instURL = instrumentalURL {
+            let normalizedInstrumental = AudioProcessor.normalize(result.instrumental)
+            try AudioProcessor.saveAudio(normalizedInstrumental, to: instURL)
+            logger.info("🎸 [SAVED] Instrumental: \(instURL.lastPathComponent)")
+        }
+    }
+
+    /// Save separated vocals to file (backward compatibility)
+    func save(result: SeparationResult, to url: URL) throws {
+        try save(result: result, vocalsURL: url, instrumentalURL: nil)
     }
 
     // MARK: - Private Methods
