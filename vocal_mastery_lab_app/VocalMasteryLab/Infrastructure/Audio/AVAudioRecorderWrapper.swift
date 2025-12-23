@@ -41,12 +41,16 @@ public class AVAudioRecorderWrapper: NSObject, AudioRecorderProtocol {
         recordingURL = url
         Logger.recording.debug("Recording URL: \(url.lastPathComponent)")
 
-        // Configure audio settings
+        // Configure audio settings - High quality Linear PCM (WAV)
+        // 44.1kHz, 32-bit float, stereo for maximum quality
         let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
             AVSampleRateKey: 44100.0,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+            AVNumberOfChannelsKey: 2,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
         ]
 
         // Create AVAudioRecorder
@@ -197,14 +201,14 @@ public class AVAudioRecorderWrapper: NSObject, AudioRecorderProtocol {
         let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
 
         // Generate filename with timestamp + milliseconds for uniqueness
-        // Format: recording_yyyyMMdd_HHmmss_SSS.m4a
+        // Format: recording_yyyyMMdd_HHmmss_SSS.wav
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = dateFormatter.string(from: Date())
 
         // Add milliseconds for uniqueness when called in rapid succession
         let milliseconds = Int(Date().timeIntervalSince1970 * 1000) % 1000
-        let fileName = "recording_\(timestamp)_\(String(format: "%03d", milliseconds)).m4a"
+        let fileName = "recording_\(timestamp)_\(String(format: "%03d", milliseconds)).wav"
 
         let url = documentsDir.appendingPathComponent(fileName)
         return url
