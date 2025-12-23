@@ -13,6 +13,9 @@ public class RecordingListViewModel: ObservableObject {
     @Published public private(set) var currentPlaybackPosition: [RecordingId: TimeInterval] = [:]
     @Published public private(set) var selectedRecording: Recording?
     @Published public private(set) var extractedRecordingIds: Set<RecordingId> = []
+    @Published public var selectedAudioSource: AudioSourceType = .original
+    @Published public private(set) var extractedAudios: [RecordingId: [ExtractedAudio]] = [:]
+    @Published public private(set) var currentPlayingSource: AudioSourceType = .original
 
     private let recordingRepository: RecordingRepositoryProtocol
     private let extractedAudioRepository: ExtractedAudioRepositoryProtocol
@@ -76,10 +79,18 @@ public class RecordingListViewModel: ObservableObject {
         do {
             let allExtracted = try await extractedAudioRepository.findAll()
             var extractedIds = Set<RecordingId>()
+            var audiosMap: [RecordingId: [ExtractedAudio]] = [:]
+
             for extracted in allExtracted {
                 extractedIds.insert(extracted.sourceRecordingId)
+                if audiosMap[extracted.sourceRecordingId] == nil {
+                    audiosMap[extracted.sourceRecordingId] = []
+                }
+                audiosMap[extracted.sourceRecordingId]?.append(extracted)
             }
+
             extractedRecordingIds = extractedIds
+            extractedAudios = audiosMap
         } catch {
             // Silently ignore extraction status errors
         }
@@ -90,14 +101,77 @@ public class RecordingListViewModel: ObservableObject {
         extractedRecordingIds.contains(recording.id)
     }
 
-    /// Play a recording (assumes any previous playback is already stopped)
-    public func playRecording(_ recording: Recording) async {
+    /// Get available audio sources for a recording
+    public func availableSources(for recording: Recording) -> [AudioSourceType] {
+        var sources: [AudioSourceType] = [.original]
+
+        if let audios = extractedAudios[recording.id] {
+            if audios.contains(where: { $0.type == .vocal }) {
+                sources.append(.vocal)
+            }
+            if audios.contains(where: { $0.type == .instrumental }) {
+                sources.append(.instrumental)
+            }
+        }
+
+        return sources
+    }
+
+    /// Check if audio source is available for selected recording
+    public func isSourceAvailable(_ source: AudioSourceType) -> Bool {
+        guard let recording = selectedRecording else { return source == .original }
+        return availableSources(for: recording).contains(source)
+    }
+
+    /// Get extracted audio for a specific type
+    public func getExtractedAudio(for recording: Recording, type: ExtractionType) -> ExtractedAudio? {
+        extractedAudios[recording.id]?.first { $0.type == type }
+    }
+
+    /// Get file URL for the selected audio source
+    private func getPlaybackURL(for recording: Recording, source: AudioSourceType) -> URL? {
+        switch source {
+        case .original:
+            return recording.fileURL
+        case .vocal:
+            return getExtractedAudio(for: recording, type: .vocal)?.fileURL
+        case .instrumental:
+            return getExtractedAudio(for: recording, type: .instrumental)?.fileURL
+        }
+    }
+
+    /// Get duration for the selected audio source
+    public func getDuration(for recording: Recording, source: AudioSourceType) -> Double {
+        switch source {
+        case .original:
+            return recording.duration.seconds
+        case .vocal:
+            return getExtractedAudio(for: recording, type: .vocal)?.duration.seconds ?? recording.duration.seconds
+        case .instrumental:
+            return getExtractedAudio(for: recording, type: .instrumental)?.duration.seconds ?? recording.duration.seconds
+        }
+    }
+
+    /// Play a recording with specified audio source
+    public func playRecording(_ recording: Recording, source: AudioSourceType? = nil) async {
+        let audioSource = source ?? selectedAudioSource
+
+        // Validate source is available
+        guard let url = getPlaybackURL(for: recording, source: audioSource) else {
+            // Fallback to original if selected source is not available
+            if audioSource != .original {
+                await playRecording(recording, source: .original)
+            }
+            return
+        }
+
         playingRecordingId = recording.id
+        currentPlayingSource = audioSource
 
         // Start playback without waiting for completion
         Task {
             do {
-                try await audioPlayer.play(url: recording.fileURL)
+                try await audioPlayer.play(url: url)
                 // Playback finished naturally
                 await MainActor.run {
                     if playingRecordingId == recording.id {
@@ -120,6 +194,25 @@ public class RecordingListViewModel: ObservableObject {
                     }
                 }
             }
+        }
+    }
+
+    /// Switch audio source and restart playback
+    public func switchAudioSource(to source: AudioSourceType) async {
+        guard let recording = selectedRecording else { return }
+
+        // Only switch if the source is available
+        guard isSourceAvailable(source) else { return }
+
+        selectedAudioSource = source
+
+        // If currently playing, restart with new source
+        if playingRecordingId == recording.id {
+            audioPlayer.pause()
+            currentPlaybackPosition[recording.id] = 0.0
+            currentTime = 0.0
+            await playRecording(recording, source: source)
+            await startPositionTracking()
         }
     }
 
@@ -251,6 +344,9 @@ public class RecordingListViewModel: ObservableObject {
             stopPositionTracking()
         }
 
+        // Reset audio source to original when selecting new recording
+        selectedAudioSource = .original
+
         // Select recording and update UI immediately
         selectedRecording = recording
         playingRecordingId = recording.id  // Update UI before async operation
@@ -259,7 +355,7 @@ public class RecordingListViewModel: ObservableObject {
         try? AudioSessionManager.shared.configureForPlayback()
         try? AudioSessionManager.shared.activate()
 
-        await playRecording(recording)
+        await playRecording(recording, source: .original)
         await startPositionTracking()
     }
 
@@ -287,7 +383,8 @@ public class RecordingListViewModel: ObservableObject {
 
         let previousRecording = recordings[currentIndex - 1]
         selectedRecording = previousRecording
-        await playRecording(previousRecording)
+        selectedAudioSource = .original  // Reset to original when navigating
+        await playRecording(previousRecording, source: .original)
         await startPositionTracking()
     }
 
@@ -301,7 +398,8 @@ public class RecordingListViewModel: ObservableObject {
 
         let nextRecording = recordings[currentIndex + 1]
         selectedRecording = nextRecording
-        await playRecording(nextRecording)
+        selectedAudioSource = .original  // Reset to original when navigating
+        await playRecording(nextRecording, source: .original)
         await startPositionTracking()
     }
 

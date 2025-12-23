@@ -10,11 +10,20 @@ struct PlaybackControlPanel: View {
             // Recording info or placeholder message
             VStack(spacing: 4) {
                 if let recording = viewModel.selectedRecording {
-                    if let title = recording.title {
-                        Text(title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(ColorPalette.text)
+                    HStack(spacing: 4) {
+                        if let title = recording.title {
+                            Text(title)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(ColorPalette.text)
+                        }
+
+                        // Show current playing source if not original
+                        if viewModel.currentPlayingSource != .original {
+                            Text("- \(viewModel.currentPlayingSource.displayName)")
+                                .font(.subheadline)
+                                .foregroundColor(ColorPalette.primary)
+                        }
                     }
 
                     Text(recording.formattedDate)
@@ -30,6 +39,11 @@ struct PlaybackControlPanel: View {
                 }
             }
             .accessibilityIdentifier("PlaybackControlPanel_RecordingInfo")
+
+            // Audio source segment control (only shown when recording is selected)
+            if viewModel.selectedRecording != nil {
+                audioSourcePicker
+            }
 
             // Playback controls (always visible)
             HStack(spacing: 32) {
@@ -95,7 +109,7 @@ struct PlaybackControlPanel: View {
                             }
                         }
                     ),
-                    in: 0...max(viewModel.selectedRecording?.duration.seconds ?? 1.0, 0.1)
+                    in: 0...max(currentDuration, 0.1)
                 )
                 .accentColor(ColorPalette.primary)
                 .disabled(viewModel.selectedRecording == nil)
@@ -109,7 +123,7 @@ struct PlaybackControlPanel: View {
 
                     Spacer()
 
-                    Text(formatTime(viewModel.selectedRecording?.duration.seconds ?? 0.0))
+                    Text(formatTime(currentDuration))
                         .font(.caption2)
                         .foregroundColor(ColorPalette.text.opacity(0.5))
                         .accessibilityIdentifier("PlaybackControlPanel_TotalTime")
@@ -123,6 +137,62 @@ struct PlaybackControlPanel: View {
                 .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: -4)
         )
         .accessibilityIdentifier("PlaybackControlPanel")
+    }
+
+    // MARK: - Audio Source Picker
+
+    private var audioSourcePicker: some View {
+        HStack(spacing: 0) {
+            ForEach(AudioSourceType.allCases, id: \.self) { source in
+                audioSourceButton(for: source)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(ColorPalette.secondary)
+        )
+        .accessibilityIdentifier("AudioSourcePicker")
+    }
+
+    private func audioSourceButton(for source: AudioSourceType) -> some View {
+        let isSelected = viewModel.selectedAudioSource == source
+        let isAvailable = viewModel.isSourceAvailable(source)
+
+        return Button(action: {
+            guard isAvailable else { return }
+            Task {
+                await viewModel.switchAudioSource(to: source)
+            }
+        }) {
+            VStack(spacing: 2) {
+                Image(systemName: source.iconName)
+                    .font(.system(size: 14))
+                Text(source.displayName)
+                    .font(.system(size: 10))
+            }
+            .foregroundColor(
+                isAvailable
+                    ? (isSelected ? .white : ColorPalette.text)
+                    : ColorPalette.text.opacity(0.3)
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? ColorPalette.primary : Color.clear)
+            )
+            .padding(2)
+        }
+        .disabled(!isAvailable)
+        .accessibilityIdentifier("AudioSourceButton_\(source.rawValue)")
+    }
+
+    // MARK: - Helpers
+
+    /// Get current duration based on selected source
+    private var currentDuration: Double {
+        guard let recording = viewModel.selectedRecording else { return 1.0 }
+        return viewModel.getDuration(for: recording, source: viewModel.currentPlayingSource)
     }
 
     /// Format time in seconds to MM:SS format

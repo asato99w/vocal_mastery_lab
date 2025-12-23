@@ -158,6 +158,7 @@ public struct RecordingListView: View {
                     isSelected: viewModel.selectedRecording?.id == recording.id,
                     isPlaying: viewModel.playingRecordingId == recording.id,
                     isExtracted: viewModel.hasExtractedAudio(recording),
+                    availableSources: viewModel.availableSources(for: recording),
                     onTap: {
                         Task {
                             await viewModel.selectAndPlay(recording)
@@ -212,11 +213,20 @@ private struct RecordingRow: View {
     let isSelected: Bool
     let isPlaying: Bool
     let isExtracted: Bool
+    let availableSources: [AudioSourceType]
     let onTap: () -> Void
     let onAnalyze: () -> Void
     let onExtract: () -> Void
     let onRename: () -> Void
     let onDelete: () -> Void
+
+    private var hasVocal: Bool {
+        availableSources.contains(.vocal)
+    }
+
+    private var hasInstrumental: Bool {
+        availableSources.contains(.instrumental)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -231,18 +241,38 @@ private struct RecordingRow: View {
                     .font(.headline)
                     .foregroundColor(ColorPalette.text)
 
-                HStack {
-                    Text(recording.formattedDate)
-                        .font(.caption)
-                        .foregroundColor(ColorPalette.text.opacity(0.6))
+                HStack(spacing: 8) {
+                    // Date and duration
+                    HStack(spacing: 4) {
+                        Text(recording.formattedDate)
+                            .font(.caption)
+                            .foregroundColor(ColorPalette.text.opacity(0.6))
 
-                    Text("•")
-                        .font(.caption)
-                        .foregroundColor(ColorPalette.text.opacity(0.4))
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(ColorPalette.text.opacity(0.4))
 
-                    Text(formatTime(recording.duration.seconds))
-                        .font(.caption)
-                        .foregroundColor(ColorPalette.text.opacity(0.6))
+                        Text(formatTime(recording.duration.seconds))
+                            .font(.caption)
+                            .foregroundColor(ColorPalette.text.opacity(0.6))
+                    }
+
+                    // Extraction status indicators
+                    if hasVocal || hasInstrumental {
+                        HStack(spacing: 4) {
+                            if hasVocal {
+                                Image(systemName: "person.wave.2")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(ColorPalette.primary)
+                            }
+                            if hasInstrumental {
+                                Image(systemName: "music.note.list")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(ColorPalette.primary)
+                            }
+                        }
+                        .accessibilityIdentifier("ExtractionIndicators")
+                    }
                 }
             }
             .padding(.vertical, 12)
