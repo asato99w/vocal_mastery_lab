@@ -829,4 +829,479 @@ final class RecordingListViewModelTests: XCTestCase {
         // Then
         XCTAssertNotNil(sut.errorMessage)
     }
+
+    // MARK: - Audio Source Tests
+
+    func testAvailableSources_NoExtractedAudio_ReturnsOnlyOriginal() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
+
+        // When
+        let sources = sut.availableSources(for: recording)
+
+        // Then
+        XCTAssertEqual(sources, [.original])
+    }
+
+    func testAvailableSources_WithVocalOnly_ReturnsOriginalAndVocal() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        await sut.loadRecordings()
+
+        // When
+        let sources = sut.availableSources(for: recording)
+
+        // Then
+        XCTAssertEqual(sources, [.original, .vocal])
+    }
+
+    func testAvailableSources_WithVocalAndInstrumental_ReturnsAll() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        let instrumentalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .instrumental,
+            fileURL: URL(fileURLWithPath: "/tmp/instrumental.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio, instrumentalAudio]
+        await sut.loadRecordings()
+
+        // When
+        let sources = sut.availableSources(for: recording)
+
+        // Then
+        XCTAssertEqual(sources, [.original, .vocal, .instrumental])
+    }
+
+    func testIsSourceAvailable_OriginalAlwaysAvailable() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+
+        // Then
+        XCTAssertTrue(sut.isSourceAvailable(.original))
+    }
+
+    func testIsSourceAvailable_VocalNotAvailableWhenNotExtracted() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+
+        // Then
+        XCTAssertFalse(sut.isSourceAvailable(.vocal))
+        XCTAssertFalse(sut.isSourceAvailable(.instrumental))
+    }
+
+    func testIsSourceAvailable_VocalAvailableWhenExtracted() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+
+        // Then
+        XCTAssertTrue(sut.isSourceAvailable(.vocal))
+    }
+
+    func testSwitchAudioSource_ChangesSelectedSource() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        // When
+        await sut.switchAudioSource(to: .vocal)
+
+        // Then
+        XCTAssertEqual(sut.selectedAudioSource, .vocal)
+    }
+
+    func testSwitchAudioSource_PlaysVocalURL() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        mockAudioPlayer.reset()
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+
+        // When
+        await sut.switchAudioSource(to: .vocal)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        // Then
+        XCTAssertTrue(mockAudioPlayer.playCalled)
+        XCTAssertEqual(mockAudioPlayer.playURL, vocalAudio.fileURL)
+    }
+
+    func testSwitchAudioSource_UnavailableSource_DoesNothing() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        mockAudioPlayer.reset()
+
+        // When - try to switch to vocal which is not available
+        await sut.switchAudioSource(to: .vocal)
+
+        // Then
+        XCTAssertEqual(sut.selectedAudioSource, .original)
+        XCTAssertFalse(mockAudioPlayer.playCalled)
+    }
+
+    func testGetDuration_Original_ReturnsRecordingDuration() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 10.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
+
+        // When
+        let duration = sut.getDuration(for: recording, source: .original)
+
+        // Then
+        XCTAssertEqual(duration, 10.0)
+    }
+
+    func testGetDuration_Vocal_ReturnsExtractedAudioDuration() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 10.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 8.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        await sut.loadRecordings()
+
+        // When
+        let duration = sut.getDuration(for: recording, source: .vocal)
+
+        // Then
+        XCTAssertEqual(duration, 8.0)
+    }
+
+    func testSelectAndPlay_ResetsAudioSourceToOriginal() async {
+        // Given
+        let recording1 = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let recording2 = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording1.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording1, recording2]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+
+        // First select recording1 and switch to vocal
+        await sut.selectAndPlay(recording1)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        await sut.switchAudioSource(to: .vocal)
+        XCTAssertEqual(sut.selectedAudioSource, .vocal)
+
+        // When - select different recording
+        await sut.selectAndPlay(recording2)
+
+        // Then - should reset to original
+        XCTAssertEqual(sut.selectedAudioSource, .original)
+    }
+
+    func testPlayNext_ResetsAudioSourceToOriginal() async {
+        // Given
+        let recording1 = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let recording2 = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording1.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording1, recording2]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+
+        // First select recording1 and switch to vocal
+        await sut.selectAndPlay(recording1)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        await sut.switchAudioSource(to: .vocal)
+        XCTAssertEqual(sut.selectedAudioSource, .vocal)
+
+        // When
+        await sut.playNext()
+
+        // Then
+        XCTAssertEqual(sut.selectedAudioSource, .original)
+    }
+
+    func testPlayPrevious_ResetsAudioSourceToOriginal() async {
+        // Given
+        let recording1 = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test1.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let recording2 = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test2.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording2.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording1, recording2]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+
+        // First select recording2 and switch to vocal
+        await sut.selectAndPlay(recording2)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        await sut.switchAudioSource(to: .vocal)
+        XCTAssertEqual(sut.selectedAudioSource, .vocal)
+
+        // When
+        await sut.playPrevious()
+
+        // Then
+        XCTAssertEqual(sut.selectedAudioSource, .original)
+    }
+
+    func testCurrentPlayingSource_UpdatedOnSwitch() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000
+        await sut.loadRecordings()
+        await sut.selectAndPlay(recording)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertEqual(sut.currentPlayingSource, .original)
+
+        // When
+        await sut.switchAudioSource(to: .vocal)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        // Then
+        XCTAssertEqual(sut.currentPlayingSource, .vocal)
+    }
+
+    func testHasExtractedAudio_TrueWhenExtracted() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        await sut.loadRecordings()
+
+        // Then
+        XCTAssertTrue(sut.hasExtractedAudio(recording))
+    }
+
+    func testHasExtractedAudio_FalseWhenNotExtracted() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
+
+        // Then
+        XCTAssertFalse(sut.hasExtractedAudio(recording))
+    }
+
+    func testGetExtractedAudio_ReturnsCorrectAudio() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        let instrumentalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .instrumental,
+            fileURL: URL(fileURLWithPath: "/tmp/instrumental.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio, instrumentalAudio]
+        await sut.loadRecordings()
+
+        // Then
+        let foundVocal = sut.getExtractedAudio(for: recording, type: .vocal)
+        XCTAssertNotNil(foundVocal)
+        XCTAssertEqual(foundVocal?.fileURL, vocalAudio.fileURL)
+
+        let foundInstrumental = sut.getExtractedAudio(for: recording, type: .instrumental)
+        XCTAssertNotNil(foundInstrumental)
+        XCTAssertEqual(foundInstrumental?.fileURL, instrumentalAudio.fileURL)
+    }
+
+    func testPlayRecording_WithVocalSource_PlaysVocalURL() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        let vocalAudio = ExtractedAudio(
+            sourceRecordingId: recording.id,
+            type: .vocal,
+            fileURL: URL(fileURLWithPath: "/tmp/vocal.wav"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        mockExtractedAudioRepository.storedAudios = [vocalAudio]
+        await sut.loadRecordings()
+
+        // When
+        await sut.playRecording(recording, source: .vocal)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+
+        // Then
+        XCTAssertTrue(mockAudioPlayer.playCalled)
+        XCTAssertEqual(mockAudioPlayer.playURL, vocalAudio.fileURL)
+    }
+
+    func testPlayRecording_WithUnavailableSource_FallsBackToOriginal() async {
+        // Given
+        let recording = Recording(
+            fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
+            duration: Duration(seconds: 5.0)
+        )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
+
+        // When - try to play vocal which doesn't exist
+        await sut.playRecording(recording, source: .vocal)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+
+        // Then - should fall back to original
+        XCTAssertTrue(mockAudioPlayer.playCalled)
+        XCTAssertEqual(mockAudioPlayer.playURL, recording.fileURL)
+    }
 }
