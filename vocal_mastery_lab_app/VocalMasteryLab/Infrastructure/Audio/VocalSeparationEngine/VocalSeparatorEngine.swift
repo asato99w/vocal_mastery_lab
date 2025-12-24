@@ -12,7 +12,7 @@ final class VocalSeparatorEngine {
 
     // MARK: - Constants (Voc_FTモデル用パラメータ)
 
-    private let nFFT: Int = 7680
+    private let nFFT: Int = 6144
     private let dimF: Int = 3072
     private let dimT: Int = 256  // 2^8
     private let hop: Int = 1024
@@ -38,7 +38,7 @@ final class VocalSeparatorEngine {
         let chunkSize: Int
 
         static let `default` = ModelConfiguration(
-            fftSize: 7680,
+            fftSize: 6144,
             hopSize: 1024,
             sampleRate: 44100,
             chunkSize: 256
@@ -140,10 +140,11 @@ final class VocalSeparatorEngine {
         progressHandler?(0.2, "ボーカルを抽出中...")
         let vocalsExtracted = try demix(left: left, right: right, denoise: true, progressHandler: progressHandler)
 
-        // 3. Voc_FTはボーカルモデル → モデル出力がボーカル
-        // 左右チャンネルは同じ処理結果を使用（モノラル処理）
-        let vocalsLeft = vocalsExtracted
-        let vocalsRight = vocalsExtracted
+        // 3. Voc_FTはボーカルモデル → モデル出力がボーカル (ステレオ)
+        // demix returns [L samples, R samples] concatenated
+        let halfLen = vocalsExtracted.count / 2
+        let vocalsLeft = Array(vocalsExtracted[0..<halfLen])
+        let vocalsRight = Array(vocalsExtracted[halfLen..<vocalsExtracted.count])
 
         let vocals = AudioProcessor.AudioData(
             samples: [vocalsLeft, vocalsRight],
@@ -153,13 +154,13 @@ final class VocalSeparatorEngine {
 
         // 4. 伴奏を計算: instrumental = original - vocals
         progressHandler?(0.95, "伴奏を計算中...")
-        let frameCount = min(left.count, vocalsExtracted.count)
+        let frameCount = min(left.count, vocalsLeft.count)
         var instrumentalLeft = [Float](repeating: 0, count: frameCount)
         var instrumentalRight = [Float](repeating: 0, count: frameCount)
 
         // vDSP_vsub: C = B - A (第1引数を第2引数から引く)
-        vDSP_vsub(vocalsExtracted, 1, left, 1, &instrumentalLeft, 1, vDSP_Length(frameCount))
-        vDSP_vsub(vocalsExtracted, 1, right, 1, &instrumentalRight, 1, vDSP_Length(frameCount))
+        vDSP_vsub(vocalsLeft, 1, left, 1, &instrumentalLeft, 1, vDSP_Length(frameCount))
+        vDSP_vsub(vocalsRight, 1, right, 1, &instrumentalRight, 1, vDSP_Length(frameCount))
 
         let instrumental = AudioProcessor.AudioData(
             samples: [instrumentalLeft, instrumentalRight],
@@ -314,29 +315,36 @@ final class VocalSeparatorEngine {
                     specPred = try predict(spek)
                 }
 
+                // iSTFT returns [L (chunkSize), R (chunkSize)]
                 let waves = istft(specPred)
-                tarWaves.append(waves)
+
+                // Trim both channels
+                let trimmedL = Array(waves[trim..<(chunkSize - trim)])
+                let trimmedR = Array(waves[(chunkSize + trim)..<(2 * chunkSize - trim)])
+                tarWaves.append(trimmedL + trimmedR)
             }
 
-            // Combine
-            var tarSignal = [Float](repeating: 0, count: (nSample + pad))
+            // Combine (stereo)
+            var tarSignalL = [Float](repeating: 0, count: (nSample + pad))
+            var tarSignalR = [Float](repeating: 0, count: (nSample + pad))
             for (waveIdx, wave) in tarWaves.enumerated() {
                 let startIdx = waveIdx * genSize
-                let trimmedWave = Array(wave[trim..<(wave.count - trim)])
-                for (i, val) in trimmedWave.enumerated() {
-                    if startIdx + i < tarSignal.count {
-                        tarSignal[startIdx + i] = val
+                let halfLen = wave.count / 2
+                for i in 0..<halfLen {
+                    if startIdx + i < tarSignalL.count {
+                        tarSignalL[startIdx + i] = wave[i]
+                        tarSignalR[startIdx + i] = wave[halfLen + i]
                     }
                 }
             }
-            tarSignal = Array(tarSignal[0..<nSample])
-
-            // Margin processing
+            // Margin processing (stereo)
             let cutStart = segIdx == 0 ? 0 : actualMargin
-            let cutEnd = segIdx == segments.count - 1 ? tarSignal.count : tarSignal.count - actualMargin
+            let cutEnd = segIdx == segments.count - 1 ? nSample : nSample - actualMargin
 
             if cutEnd > cutStart {
-                chunkedSources.append(Array(tarSignal[cutStart..<cutEnd]))
+                let cutL = Array(tarSignalL[cutStart..<cutEnd])
+                let cutR = Array(tarSignalR[cutStart..<cutEnd])
+                chunkedSources.append(cutL + cutR)
             }
 
             // Progress update
@@ -345,36 +353,40 @@ final class VocalSeparatorEngine {
             logger.info("   進捗: \(segIdx + 1)/\(segments.count)")
         }
 
-        return chunkedSources.flatMap { $0 }
+        // chunkedSources: [[L1...Ln, R1...Rn], [L1'...Ln', R1'...Rn'], ...]
+        // Return: [all L samples, all R samples]
+        var resultL = [Float]()
+        var resultR = [Float]()
+        for chunk in chunkedSources {
+            let halfLen = chunk.count / 2
+            resultL.append(contentsOf: chunk[0..<halfLen])
+            resultR.append(contentsOf: chunk[halfLen..<chunk.count])
+        }
+        return resultL + resultR
     }
 
-    /// STFT: PyTorch compatible
+    /// STFT: PyTorch compatible (center=True)
     private func stft(left: [Float], right: [Float]) -> MLMultiArray {
         let inputArray = try! MLMultiArray(shape: [1, 4, dimF, dimT] as [NSNumber], dataType: .float32)
 
         let numFrames = dimT
+        let pad = nFFT / 2  // center=True パディング
+
+        // center=True: 前後に nFFT/2 のパディングを追加
+        let leftPadded = [Float](repeating: 0, count: pad) + left + [Float](repeating: 0, count: pad)
+        let rightPadded = [Float](repeating: 0, count: pad) + right + [Float](repeating: 0, count: pad)
 
         for t in 0..<numFrames {
-            let startIdx = t * hop
-            let endIdx = min(startIdx + nFFT, left.count)
+            let start = t * hop
 
-            // Left channel
-            var leftFrame = [Float](repeating: 0, count: nFFT)
-            for i in 0..<min(nFFT, endIdx - startIdx) {
-                leftFrame[i] = left[startIdx + i]
-            }
-
-            // Right channel
-            var rightFrame = [Float](repeating: 0, count: nFFT)
-            for i in 0..<min(nFFT, endIdx - startIdx) {
-                rightFrame[i] = right[startIdx + i]
-            }
-
-            // Apply window
+            // Windowed segments
             var leftWindowed = [Float](repeating: 0, count: nFFT)
             var rightWindowed = [Float](repeating: 0, count: nFFT)
-            vDSP_vmul(leftFrame, 1, window, 1, &leftWindowed, 1, vDSP_Length(nFFT))
-            vDSP_vmul(rightFrame, 1, window, 1, &rightWindowed, 1, vDSP_Length(nFFT))
+
+            for i in 0..<nFFT {
+                leftWindowed[i] = leftPadded[start + i] * window[i]
+                rightWindowed[i] = rightPadded[start + i] * window[i]
+            }
 
             // DFT
             var leftReal = [Float](repeating: 0, count: nFFT)
@@ -413,62 +425,69 @@ final class VocalSeparatorEngine {
         return result
     }
 
-    /// iSTFT: PyTorch compatible
+    /// iSTFT: PyTorch compatible (center=True, stereo)
+    /// Returns: [Left channel (chunkSize samples), Right channel (chunkSize samples)]
     private func istft(_ specPred: MLMultiArray) -> [Float] {
-        var output = [Float](repeating: 0, count: chunkSize)
-        var windowSum = [Float](repeating: 0, count: chunkSize)
+        var audio = [Float](repeating: 0, count: 2 * chunkSize)
+        let pad = nFFT / 2  // center=True パディング
+        let paddedLen = chunkSize + nFFT  // パディング後の長さ
 
-        for t in 0..<dimT {
-            var realFull = [Float](repeating: 0, count: nFFT)
-            var imagFull = [Float](repeating: 0, count: nFFT)
+        for ch in 0..<2 {
+            var paddedAudio = [Float](repeating: 0, count: paddedLen)
+            var windowSum = [Float](repeating: 0, count: paddedLen)
 
-            // Positive frequencies (left channel only)
-            for f in 0..<dimF {
-                realFull[f] = specPred[[0, 0, f, t] as [NSNumber]].floatValue
-                imagFull[f] = specPred[[0, 1, f, t] as [NSNumber]].floatValue
-            }
+            for t in 0..<dimT {
+                var realFull = [Float](repeating: 0, count: nFFT)
+                var imagFull = [Float](repeating: 0, count: nFFT)
 
-            // Frequency padding (dim_f to nBins)
-            for f in dimF..<nBins {
-                realFull[f] = 0
-                imagFull[f] = 0
-            }
+                // モデル出力からスペクトルを取得 (0 to dimF-1)
+                for f in 0..<dimF {
+                    let realIdx = (ch * 2)  // ch=0: 0(L_real), ch=1: 2(R_real)
+                    let imagIdx = (ch * 2 + 1)  // ch=0: 1(L_imag), ch=1: 3(R_imag)
+                    realFull[f] = specPred[[0, realIdx, f, t] as [NSNumber]].floatValue
+                    imagFull[f] = specPred[[0, imagIdx, f, t] as [NSNumber]].floatValue
+                }
 
-            // Negative frequencies (conjugate symmetry)
-            for f in 1..<(nBins - 1) {
-                let mirrorIdx = nFFT - f
-                realFull[mirrorIdx] = realFull[f]
-                imagFull[mirrorIdx] = -imagFull[f]
-            }
+                // 共役対称性を利用して後半を埋める
+                // X[k] = conj(X[N-k]) for k > N/2
+                for f in (nFFT / 2 + 1)..<nFFT {
+                    realFull[f] = realFull[nFFT - f]
+                    imagFull[f] = -imagFull[nFFT - f]
+                }
 
-            // IDFT
-            var realOut = [Float](repeating: 0, count: nFFT)
-            var imagOut = [Float](repeating: 0, count: nFFT)
-            vDSP_DFT_Execute(dftSetupInverse!, &realFull, &imagFull, &realOut, &imagOut)
+                // IDFT
+                var realOut = [Float](repeating: 0, count: nFFT)
+                var imagOut = [Float](repeating: 0, count: nFFT)
+                vDSP_DFT_Execute(dftSetupInverse!, &realFull, &imagFull, &realOut, &imagOut)
 
-            // Scaling (1/N)
-            var scale = 1.0 / Float(nFFT)
-            vDSP_vsmul(realOut, 1, &scale, &realOut, 1, vDSP_Length(nFFT))
+                // スケーリング (1/N) と窓関数適用
+                let scale = 1.0 / Float(nFFT)
+                for i in 0..<nFFT {
+                    realOut[i] = realOut[i] * scale * window[i]
+                }
 
-            // OLA
-            let startIdx = t * hop
-            for i in 0..<nFFT {
-                let outIdx = startIdx + i
-                if outIdx < chunkSize {
-                    output[outIdx] += realOut[i] * window[i]
-                    windowSum[outIdx] += window[i] * window[i]
+                // Overlap-add (パディング込みの配列に)
+                let start = t * hop
+                for i in 0..<nFFT {
+                    paddedAudio[start + i] += realOut[i]
+                    windowSum[start + i] += window[i] * window[i]
                 }
             }
-        }
 
-        // Normalization
-        for i in 0..<chunkSize {
-            if windowSum[i] > 1e-8 {
-                output[i] /= windowSum[i]
+            // Normalize
+            for i in 0..<paddedLen {
+                if windowSum[i] > 1e-8 {
+                    paddedAudio[i] /= windowSum[i]
+                }
+            }
+
+            // center=True のパディングを除去して出力
+            for i in 0..<chunkSize {
+                audio[ch * chunkSize + i] = paddedAudio[pad + i]
             }
         }
 
-        return output
+        return audio
     }
 
     private func negateMultiArray(_ array: MLMultiArray) -> MLMultiArray {

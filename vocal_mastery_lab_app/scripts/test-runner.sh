@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# VocalisStudio Test Runner Script
+# VocalMasteryLab Test Runner Script
 # Usage: ./scripts/test-runner.sh [all|ui|unit|critical|smoke] [test-name]
 #
 # Examples:
@@ -21,12 +21,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT="VocalisStudio.xcodeproj"
-DESTINATION="platform=iOS Simulator,name=iPhone 16 Pro"
+PROJECT="VocalMasteryLab.xcodeproj"
+DESTINATION="platform=iOS Simulator,name=iPhone 16"
 
 # Functions
 print_usage() {
-    echo -e "${BLUE}VocalisStudio Test Runner${NC}"
+    echo -e "${BLUE}VocalMasteryLab Test Runner${NC}"
     echo ""
     echo "Usage: $0 [all|ui|unit|critical|smoke] [test-name]"
     echo ""
@@ -55,14 +55,14 @@ run_critical_tests() {
 
     local cmd="xcodebuild test \
         -project ${PROJECT} \
-        -scheme VocalisStudio-UIOnly \
+        -scheme VocalMasteryLab-UIOnly \
         -destination '${DESTINATION}' \
         -parallel-testing-enabled NO \
         -allowProvisioningUpdates \
-        -only-testing:VocalisStudioUITests/RecordingFlowUITests/testBasicRecordingFlow \
-        -only-testing:VocalisStudioUITests/RecordingListUITests/testDeleteRecording \
-        -only-testing:VocalisStudioUITests/RecordingLimitUITests/testRecordingLimitAlert_shouldAppear_whenAtLimit \
-        -only-testing:VocalisStudioUITests/PaywallUITests/testPurchase_shouldUpdateToPremiumStatus"
+        -only-testing:VocalMasteryLabUITests/RecordingFlowUITests/testBasicRecordingFlow \
+        -only-testing:VocalMasteryLabUITests/RecordingListUITests/testDeleteRecording \
+        -only-testing:VocalMasteryLabUITests/RecordingLimitUITests/testRecordingLimitAlert_shouldAppear_whenAtLimit \
+        -only-testing:VocalMasteryLabUITests/PaywallUITests/testPurchase_shouldUpdateToPremiumStatus"
 
     echo -e "${YELLOW}Tests: testBasicRecordingFlow, testDeleteRecording, testRecordingLimitAlert, testPurchase${NC}"
     echo ""
@@ -86,17 +86,17 @@ run_smoke_tests() {
 
     local cmd="xcodebuild test \
         -project ${PROJECT} \
-        -scheme VocalisStudio-UIOnly \
+        -scheme VocalMasteryLab-UIOnly \
         -destination '${DESTINATION}' \
         -parallel-testing-enabled NO \
         -allowProvisioningUpdates \
-        -only-testing:VocalisStudioUITests/RecordingFlowUITests/testBasicRecordingFlow \
-        -only-testing:VocalisStudioUITests/RecordingListUITests/testDeleteRecording \
-        -only-testing:VocalisStudioUITests/RecordingLimitUITests/testRecordingLimitAlert_shouldAppear_whenAtLimit \
-        -only-testing:VocalisStudioUITests/PaywallUITests/testPurchase_shouldUpdateToPremiumStatus \
-        -only-testing:VocalisStudioUITests/NavigationUITests/testMultipleRecordings \
-        -only-testing:VocalisStudioUITests/PlaybackUITests/testPlaybackFullCompletion \
-        -only-testing:VocalisStudioUITests/AnalysisUITests/testAnalysisViewDisplay"
+        -only-testing:VocalMasteryLabUITests/RecordingFlowUITests/testBasicRecordingFlow \
+        -only-testing:VocalMasteryLabUITests/RecordingListUITests/testDeleteRecording \
+        -only-testing:VocalMasteryLabUITests/RecordingLimitUITests/testRecordingLimitAlert_shouldAppear_whenAtLimit \
+        -only-testing:VocalMasteryLabUITests/PaywallUITests/testPurchase_shouldUpdateToPremiumStatus \
+        -only-testing:VocalMasteryLabUITests/NavigationUITests/testMultipleRecordings \
+        -only-testing:VocalMasteryLabUITests/PlaybackUITests/testPlaybackFullCompletion \
+        -only-testing:VocalMasteryLabUITests/AnalysisUITests/testAnalysisViewDisplay"
 
     echo -e "${YELLOW}Tests: Critical + testMultipleRecordings, testPlaybackFullCompletion, testAnalysisViewDisplay${NC}"
     echo ""
@@ -149,7 +149,7 @@ run_tests() {
 
 list_schemes() {
     echo -e "${BLUE}Available schemes:${NC}"
-    ls -1 VocalisStudio.xcodeproj/xcshareddata/xcschemes/ | grep "\.xcscheme$" | sed 's/\.xcscheme$//' | while read scheme; do
+    ls -1 VocalMasteryLab.xcodeproj/xcshareddata/xcschemes/ | grep "\.xcscheme$" | sed 's/\.xcscheme$//' | while read scheme; do
         echo "  - $scheme"
     done
     echo ""
@@ -162,8 +162,8 @@ main() {
 
     # Check if we're in the right directory
     if [ ! -d "$PROJECT" ]; then
-        echo -e "${RED}Error: VocalisStudio.xcodeproj not found${NC}"
-        echo "Please run this script from the VocalisStudio directory"
+        echo -e "${RED}Error: VocalMasteryLab.xcodeproj not found${NC}"
+        echo "Please run this script from the VocalMasteryLab directory"
         exit 1
     fi
 
@@ -177,13 +177,13 @@ main() {
     # Select scheme and target based on test type
     case "$test_type" in
         all)
-            run_tests "VocalisStudio-All" "" "$test_name"
+            run_tests "VocalMasteryLab-All" "" "$test_name"
             ;;
         ui)
-            run_tests "VocalisStudio-UIOnly" "VocalisStudioUITests" "$test_name"
+            run_tests "VocalMasteryLab-UIOnly" "VocalMasteryLabUITests" "$test_name"
             ;;
         unit)
-            run_tests "VocalisStudio-UnitOnly" "VocalisStudioTests" "$test_name"
+            run_tests "VocalMasteryLab-UnitOnly" "VocalMasteryLabTests" "$test_name"
             ;;
         critical)
             run_critical_tests
