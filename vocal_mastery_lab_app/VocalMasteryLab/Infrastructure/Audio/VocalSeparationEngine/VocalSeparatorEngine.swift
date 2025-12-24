@@ -137,8 +137,9 @@ final class VocalSeparatorEngine {
         logger.info("📥 [AUDIO_LOADED] frames=\(left.count)")
 
         // 2. Demix (separate) - Voc_FTモデルはボーカルを直接出力
+        // Note: denoise=false でPython/PoC互換（単一推論）
         progressHandler?(0.2, "ボーカルを抽出中...")
-        let vocalsExtracted = try demix(left: left, right: right, denoise: true, progressHandler: progressHandler)
+        let vocalsExtracted = try demix(left: left, right: right, denoise: false, progressHandler: progressHandler)
 
         // 3. Voc_FTはボーカルモデル → モデル出力がボーカル (ステレオ)
         // demix returns [L samples, R samples] concatenated
@@ -185,23 +186,24 @@ final class VocalSeparatorEngine {
     ///   - result: The separation result containing vocals and instrumental
     ///   - vocalsURL: URL for saving the vocals track
     ///   - instrumentalURL: Optional URL for saving the instrumental track
-    func save(result: SeparationResult, vocalsURL: URL, instrumentalURL: URL? = nil) throws {
+    ///   - normalize: Whether to normalize audio to peak 1.0 (default: false for model accuracy)
+    func save(result: SeparationResult, vocalsURL: URL, instrumentalURL: URL? = nil, normalize: Bool = false) throws {
         // Save vocals
-        let normalizedVocals = AudioProcessor.normalize(result.vocals)
-        try AudioProcessor.saveAudio(normalizedVocals, to: vocalsURL)
+        let vocalsToSave = normalize ? AudioProcessor.normalize(result.vocals) : result.vocals
+        try AudioProcessor.saveAudio(vocalsToSave, to: vocalsURL)
         logger.info("🎤 [SAVED] Vocals: \(vocalsURL.lastPathComponent)")
 
         // Save instrumental if URL provided
         if let instURL = instrumentalURL {
-            let normalizedInstrumental = AudioProcessor.normalize(result.instrumental)
-            try AudioProcessor.saveAudio(normalizedInstrumental, to: instURL)
+            let instToSave = normalize ? AudioProcessor.normalize(result.instrumental) : result.instrumental
+            try AudioProcessor.saveAudio(instToSave, to: instURL)
             logger.info("🎸 [SAVED] Instrumental: \(instURL.lastPathComponent)")
         }
     }
 
     /// Save separated vocals to file (backward compatibility)
     func save(result: SeparationResult, to url: URL) throws {
-        try save(result: result, vocalsURL: url, instrumentalURL: nil)
+        try save(result: result, vocalsURL: url, instrumentalURL: nil, normalize: false)
     }
 
     // MARK: - Private Methods

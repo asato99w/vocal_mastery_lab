@@ -65,9 +65,9 @@ public final class CoreMLVocalExtractor: VocalExtractorProtocol {
         let vocalURL = extractedDir.appendingPathComponent(vocalFileName)
         let instrumentalURL = extractedDir.appendingPathComponent(instrumentalFileName)
 
-        // Save vocals and instrumental
+        // Save vocals and instrumental (normalize for user experience)
         do {
-            try engine.save(result: result, vocalsURL: vocalURL, instrumentalURL: instrumentalURL)
+            try engine.save(result: result, vocalsURL: vocalURL, instrumentalURL: instrumentalURL, normalize: true)
         } catch {
             throw VocalExtractionError.extractionFailed("保存失敗: \(error.localizedDescription)")
         }
