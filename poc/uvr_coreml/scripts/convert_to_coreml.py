@@ -46,7 +46,7 @@ def convert_onnx_to_coreml(
     print(f"4. CoreML変換中...")
     mlmodel = ct.convert(
         traced_model,
-        inputs=[ct.TensorType(shape=example_input.shape)],
+        inputs=[ct.TensorType(name="input", shape=example_input.shape)],
         minimum_deployment_target=ct.target.iOS17,
         convert_to="mlprogram"
     )

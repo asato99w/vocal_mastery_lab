@@ -88,7 +88,12 @@ final class VocalSeparatorEngine {
         }
 
         let mlConfig = MLModelConfiguration()
+        // シミュレータではANE/GPUが使えないためCPUOnlyを使用
+        #if targetEnvironment(simulator)
+        mlConfig.computeUnits = .cpuOnly
+        #else
         mlConfig.computeUnits = .all
+        #endif
 
         do {
             self.model = try MLModel(contentsOf: compiledURL, configuration: mlConfig)
@@ -368,8 +373,13 @@ final class VocalSeparatorEngine {
     }
 
     /// STFT: PyTorch compatible (center=True)
+    /// PoCと同じフラットインデックス方式で実装
     private func stft(left: [Float], right: [Float]) -> MLMultiArray {
-        let inputArray = try! MLMultiArray(shape: [1, 4, dimF, dimT] as [NSNumber], dataType: .float32)
+        // モデルはFloat16を期待しているのでFloat16で作成
+        let inputArray = try! MLMultiArray(shape: [1, dimC, dimF, dimT] as [NSNumber], dataType: .float16)
+
+        // 一時的なフラット配列 (PoCと同じ方式)
+        var result = [Float](repeating: 0, count: dimC * dimF * dimT)
 
         let numFrames = dimT
         let pad = nFFT / 2  // center=True パディング
@@ -378,35 +388,41 @@ final class VocalSeparatorEngine {
         let leftPadded = [Float](repeating: 0, count: pad) + left + [Float](repeating: 0, count: pad)
         let rightPadded = [Float](repeating: 0, count: pad) + right + [Float](repeating: 0, count: pad)
 
-        for t in 0..<numFrames {
-            let start = t * hop
+        // チャンネルごとに処理 (PoCと同じ構造)
+        for ch in 0..<2 {
+            let paddedAudio = ch == 0 ? leftPadded : rightPadded
 
-            // Windowed segments
-            var leftWindowed = [Float](repeating: 0, count: nFFT)
-            var rightWindowed = [Float](repeating: 0, count: nFFT)
+            for frame in 0..<numFrames {
+                let start = frame * hop
 
-            for i in 0..<nFFT {
-                leftWindowed[i] = leftPadded[start + i] * window[i]
-                rightWindowed[i] = rightPadded[start + i] * window[i]
+                // Windowedセグメントを作成
+                var windowedReal = [Float](repeating: 0, count: nFFT)
+                var windowedImag = [Float](repeating: 0, count: nFFT)
+
+                for i in 0..<nFFT {
+                    windowedReal[i] = paddedAudio[start + i] * window[i]
+                }
+
+                // DFT実行
+                var outputReal = [Float](repeating: 0, count: nFFT)
+                var outputImag = [Float](repeating: 0, count: nFFT)
+
+                vDSP_DFT_Execute(dftSetupForward!, windowedReal, windowedImag, &outputReal, &outputImag)
+
+                // Store in [4, dimF, dimT] format: [L_real, L_imag, R_real, R_imag]
+                // PoCと同じインデックス計算
+                for f in 0..<dimF {
+                    let realIdx = (ch * 2) * dimF * dimT + f * dimT + frame
+                    let imagIdx = (ch * 2 + 1) * dimF * dimT + f * dimT + frame
+                    result[realIdx] = outputReal[f]
+                    result[imagIdx] = outputImag[f]
+                }
             }
+        }
 
-            // DFT
-            var leftReal = [Float](repeating: 0, count: nFFT)
-            var leftImag = [Float](repeating: 0, count: nFFT)
-            var rightReal = [Float](repeating: 0, count: nFFT)
-            var rightImag = [Float](repeating: 0, count: nFFT)
-            var zeroImag = [Float](repeating: 0, count: nFFT)
-
-            vDSP_DFT_Execute(dftSetupForward!, &leftWindowed, &zeroImag, &leftReal, &leftImag)
-            vDSP_DFT_Execute(dftSetupForward!, &rightWindowed, &zeroImag, &rightReal, &rightImag)
-
-            // Store in MLMultiArray (up to dim_f)
-            for f in 0..<dimF {
-                inputArray[[0, 0, f, t] as [NSNumber]] = NSNumber(value: leftReal[f])
-                inputArray[[0, 1, f, t] as [NSNumber]] = NSNumber(value: leftImag[f])
-                inputArray[[0, 2, f, t] as [NSNumber]] = NSNumber(value: rightReal[f])
-                inputArray[[0, 3, f, t] as [NSNumber]] = NSNumber(value: rightImag[f])
-            }
+        // フラットインデックスでMLMultiArrayに転送 (PoCと同じ方式)
+        for i in 0..<result.count {
+            inputArray[i] = NSNumber(value: result[i])
         }
 
         return inputArray
@@ -429,6 +445,7 @@ final class VocalSeparatorEngine {
 
     /// iSTFT: PyTorch compatible (center=True, stereo)
     /// Returns: [Left channel (chunkSize samples), Right channel (chunkSize samples)]
+    /// PoCと同じフラットインデックス方式で実装
     private func istft(_ specPred: MLMultiArray) -> [Float] {
         var audio = [Float](repeating: 0, count: 2 * chunkSize)
         let pad = nFFT / 2  // center=True パディング
@@ -438,16 +455,17 @@ final class VocalSeparatorEngine {
             var paddedAudio = [Float](repeating: 0, count: paddedLen)
             var windowSum = [Float](repeating: 0, count: paddedLen)
 
-            for t in 0..<dimT {
+            for frame in 0..<dimT {
                 var realFull = [Float](repeating: 0, count: nFFT)
                 var imagFull = [Float](repeating: 0, count: nFFT)
 
                 // モデル出力からスペクトルを取得 (0 to dimF-1)
+                // PoCと同じフラットインデックス計算
                 for f in 0..<dimF {
-                    let realIdx = (ch * 2)  // ch=0: 0(L_real), ch=1: 2(R_real)
-                    let imagIdx = (ch * 2 + 1)  // ch=0: 1(L_imag), ch=1: 3(R_imag)
-                    realFull[f] = specPred[[0, realIdx, f, t] as [NSNumber]].floatValue
-                    imagFull[f] = specPred[[0, imagIdx, f, t] as [NSNumber]].floatValue
+                    let realIdx = (ch * 2) * dimF * dimT + f * dimT + frame
+                    let imagIdx = (ch * 2 + 1) * dimF * dimT + f * dimT + frame
+                    realFull[f] = specPred[realIdx].floatValue
+                    imagFull[f] = specPred[imagIdx].floatValue
                 }
 
                 // 共役対称性を利用して後半を埋める
@@ -469,7 +487,7 @@ final class VocalSeparatorEngine {
                 }
 
                 // Overlap-add (パディング込みの配列に)
-                let start = t * hop
+                let start = frame * hop
                 for i in 0..<nFFT {
                     paddedAudio[start + i] += realOut[i]
                     windowSum[start + i] += window[i] * window[i]

@@ -427,30 +427,26 @@ final class VocalSeparatorEngineTests: XCTestCase {
             throw XCTSkip("Model not found in bundle")
         }
 
-        print("📁 Audio: \(testAudioURL.path)")
-        print("📁 Model: \(modelURL.path)")
-
         // 出力ディレクトリ (poc/uvr_coreml/output/app/Ani_1_01)
         let pocOutputDir = URL(fileURLWithPath: "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml/output/app/Ani_1_01")
         try FileManager.default.createDirectory(at: pocOutputDir, withIntermediateDirectories: true)
 
         // 抽出実行
         let engine = try VocalSeparatorEngine(modelURL: modelURL)
-        print("🎵 抽出開始...")
         let result = try engine.separate(audioURL: testAudioURL, progressHandler: nil)
-        print("✅ 抽出完了")
 
         // poc出力ディレクトリに保存
         let vocalsURL = pocOutputDir.appendingPathComponent("vocals.wav")
         let instrumentalURL = pocOutputDir.appendingPathComponent("instrumental.wav")
         try engine.save(result: result, vocalsURL: vocalsURL, instrumentalURL: instrumentalURL)
-        print("💾 ボーカル保存: \(vocalsURL.path)")
-        print("💾 伴奏保存: \(instrumentalURL.path)")
 
         // 検証
         XCTAssertTrue(FileManager.default.fileExists(atPath: vocalsURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: instrumentalURL.path))
         XCTAssertGreaterThan(result.vocals.frameCount, 0)
-        print("✅ フレーム数: \(result.vocals.frameCount)")
+
+        // RMS計算で診断
+        let vocalsRMS = sqrt(result.vocals.samples.flatMap { $0 }.map { $0 * $0 }.reduce(0, +) / Float(result.vocals.frameCount * 2))
+        XCTAssertGreaterThan(vocalsRMS, 0.001, "Vocals should have non-zero RMS")
     }
 }
