@@ -240,6 +240,7 @@ final class VocalSeparatorEngine {
         return (left, right)
     }
 
+    /// demix: PoCと同じシンプルな処理方式
     private func demix(
         left: [Float],
         right: [Float],
@@ -248,135 +249,83 @@ final class VocalSeparatorEngine {
         chunks: Int = 15,
         progressHandler: ProgressHandler? = nil
     ) throws -> [Float] {
-        let samples = left.count
-        let segmentSize = chunks * targetSampleRate
-
-        var actualMargin = margin
-        if actualMargin > segmentSize {
-            actualMargin = segmentSize
-        }
-
-        // Segment division
-        var segments: [(start: Int, data: ([Float], [Float]))] = []
-        var counter = -1
-        var skip = 0
-
-        while skip < samples {
-            counter += 1
-            let sMargin = counter == 0 ? 0 : actualMargin
-            let end = min(skip + segmentSize + actualMargin, samples)
-            let start = skip - sMargin
-
-            let leftSeg = Array(left[max(0, start)..<end])
-            let rightSeg = Array(right[max(0, start)..<end])
-
-            if start < 0 {
-                let padSize = -start
-                let leftPadded = [Float](repeating: 0, count: padSize) + leftSeg
-                let rightPadded = [Float](repeating: 0, count: padSize) + rightSeg
-                segments.append((skip, (leftPadded, rightPadded)))
-            } else {
-                segments.append((skip, (leftSeg, rightSeg)))
-            }
-
-            if end >= samples { break }
-            skip += segmentSize
-        }
-
-        // Process each segment
-        var chunkedSources: [[Float]] = []
+        let nSample = left.count
         let trim = nFFT / 2
         let genSize = chunkSize - 2 * trim
+        let pad = genSize - nSample % genSize
 
-        for (segIdx, (_, (leftSeg, rightSeg))) in segments.enumerated() {
-            let nSample = leftSeg.count
-            let pad = genSize - nSample % genSize
+        // パディング（PoCと同じ方法）
+        let lPadded = [Float](repeating: 0, count: trim) + left +
+                      [Float](repeating: 0, count: pad) +
+                      [Float](repeating: 0, count: trim)
+        let rPadded = [Float](repeating: 0, count: trim) + right +
+                      [Float](repeating: 0, count: pad) +
+                      [Float](repeating: 0, count: trim)
 
-            // Padding
-            let leftPadded = [Float](repeating: 0, count: trim) + leftSeg + [Float](repeating: 0, count: pad + trim)
-            let rightPadded = [Float](repeating: 0, count: trim) + rightSeg + [Float](repeating: 0, count: pad + trim)
+        // チャンクに分割
+        var mixChunks: [([Float], [Float])] = []
+        var i = 0
+        while i < nSample + pad {
+            let chunkL = Array(lPadded[i..<(i + chunkSize)])
+            let chunkR = Array(rPadded[i..<(i + chunkSize)])
+            mixChunks.append((chunkL, chunkR))
+            i += genSize
+        }
 
-            // Split into chunks
-            var mixWaves: [([Float], [Float])] = []
-            var i = 0
-            while i < nSample + pad {
-                let leftChunk = Array(leftPadded[i..<(i + chunkSize)])
-                let rightChunk = Array(rightPadded[i..<(i + chunkSize)])
-                mixWaves.append((leftChunk, rightChunk))
-                i += genSize
+        logger.info("   チャンク数: \(mixChunks.count)")
+
+        // 各チャンクを処理
+        var outputChunks: [[Float]] = []
+        for (idx, (leftChunk, rightChunk)) in mixChunks.enumerated() {
+            let spek = stft(left: leftChunk, right: rightChunk)
+
+            let specPred: MLMultiArray
+            if denoise {
+                let predPos = try predict(spek)
+                let negSpek = negateMultiArray(spek)
+                let predNeg = try predict(negSpek)
+                specPred = averagePredictions(predPos, negPredNeg: predNeg)
+            } else {
+                specPred = try predict(spek)
             }
 
-            // Inference
-            var tarWaves: [[Float]] = []
+            let waves = istft(specPred)
 
-            for (leftWave, rightWave) in mixWaves {
-                let spek = stft(left: leftWave, right: rightWave)
-
-                let specPred: MLMultiArray
-                if denoise {
-                    let predPos = try predict(spek)
-                    let negSpek = negateMultiArray(spek)
-                    let predNeg = try predict(negSpek)
-                    specPred = averagePredictions(predPos, negPredNeg: predNeg)
-                } else {
-                    specPred = try predict(spek)
-                }
-
-                // iSTFT returns [L (chunkSize), R (chunkSize)]
-                let waves = istft(specPred)
-
-                // Trim both channels
-                let trimmedL = Array(waves[trim..<(chunkSize - trim)])
-                let trimmedR = Array(waves[(chunkSize + trim)..<(2 * chunkSize - trim)])
-                tarWaves.append(trimmedL + trimmedR)
-            }
-
-            // Combine (stereo)
-            var tarSignalL = [Float](repeating: 0, count: (nSample + pad))
-            var tarSignalR = [Float](repeating: 0, count: (nSample + pad))
-            for (waveIdx, wave) in tarWaves.enumerated() {
-                let startIdx = waveIdx * genSize
-                let halfLen = wave.count / 2
-                for i in 0..<halfLen {
-                    if startIdx + i < tarSignalL.count {
-                        tarSignalL[startIdx + i] = wave[i]
-                        tarSignalR[startIdx + i] = wave[halfLen + i]
-                    }
-                }
-            }
-            // Margin processing (stereo)
-            let cutStart = segIdx == 0 ? 0 : actualMargin
-            let cutEnd = segIdx == segments.count - 1 ? nSample : nSample - actualMargin
-
-            if cutEnd > cutStart {
-                let cutL = Array(tarSignalL[cutStart..<cutEnd])
-                let cutR = Array(tarSignalR[cutStart..<cutEnd])
-                chunkedSources.append(cutL + cutR)
-            }
+            // Trim
+            let trimmedL = Array(waves[trim..<(chunkSize - trim)])
+            let trimmedR = Array(waves[(chunkSize + trim)..<(2 * chunkSize - trim)])
+            outputChunks.append(trimmedL + trimmedR)
 
             // Progress update
-            let progress = 0.2 + (Double(segIdx + 1) / Double(segments.count)) * 0.7
-            progressHandler?(progress, "ボーカルを抽出中... (\(segIdx + 1)/\(segments.count))")
-            logger.info("   進捗: \(segIdx + 1)/\(segments.count)")
+            let progress = 0.2 + (Double(idx + 1) / Double(mixChunks.count)) * 0.7
+            progressHandler?(progress, "ボーカルを抽出中... (\(idx + 1)/\(mixChunks.count))")
         }
 
-        // chunkedSources: [[L1...Ln, R1...Rn], [L1'...Ln', R1'...Rn'], ...]
-        // Return: [all L samples, all R samples]
-        var resultL = [Float]()
-        var resultR = [Float]()
-        for chunk in chunkedSources {
-            let halfLen = chunk.count / 2
-            resultL.append(contentsOf: chunk[0..<halfLen])
-            resultR.append(contentsOf: chunk[halfLen..<chunk.count])
+        logger.info("   進捗: \(mixChunks.count)/\(mixChunks.count)")
+
+        // 結合してパディングを除去（PoCと同じ方法）
+        var vocalsL = [Float](repeating: 0, count: nSample)
+        var vocalsR = [Float](repeating: 0, count: nSample)
+        var offset = 0
+        for chunk in outputChunks {
+            let copyLen = min(chunk.count / 2, nSample - offset)
+            if copyLen <= 0 { break }
+
+            for j in 0..<copyLen {
+                vocalsL[j + offset] = chunk[j]
+                vocalsR[j + offset] = chunk[chunk.count / 2 + j]
+            }
+            offset += copyLen
         }
-        return resultL + resultR
+
+        return vocalsL + vocalsR
     }
 
     /// STFT: PyTorch compatible (center=True)
     /// PoCと同じフラットインデックス方式で実装
     private func stft(left: [Float], right: [Float]) -> MLMultiArray {
-        // モデルはFloat16を期待しているのでFloat16で作成
-        let inputArray = try! MLMultiArray(shape: [1, dimC, dimF, dimT] as [NSNumber], dataType: .float16)
+        // PoCと同じFloat32で作成（CoreMLが自動的にFloat16に変換）
+        let inputArray = try! MLMultiArray(shape: [1, dimC, dimF, dimT] as [NSNumber], dataType: .float32)
 
         // 一時的なフラット配列 (PoCと同じ方式)
         var result = [Float](repeating: 0, count: dimC * dimF * dimT)
