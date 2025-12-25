@@ -76,6 +76,14 @@ public class AudioSessionManager {
     public func configureForRecording() throws {
         let audioSession = AVAudioSession.sharedInstance()
 
+        // Log initial state before configuration for debugging audio mixing issues
+        let wasOtherAudioPlaying = audioSession.isOtherAudioPlaying
+        if wasOtherAudioPlaying {
+            Logger.audio.info("[DEBUG] Other audio is playing before configureForRecording")
+            FileLogger.shared.log(level: "DEBUG", category: "audio", message: "Other audio is playing before configureForRecording")
+        }
+        logAudioSessionState("before-configureForRecording")
+
         do {
             // Select mode and cache it for the session
             // This prevents mode changes during recording (which would cause error -10868)
@@ -88,6 +96,10 @@ public class AudioSessionManager {
             // .allowBluetooth: supports bluetooth headsets for calls
             // .allowBluetoothA2DP: enables Bluetooth recording (required for Bluetooth microphone)
             // .mixWithOthers: allows recording to continue when other apps play audio (e.g., YouTube)
+            //
+            // NOTE: The .playAndRecord category with .measurement mode may cause iOS to reduce
+            // other apps' audio volumes (ducking behavior) to ensure recording quality.
+            // This is intentional iOS behavior and not caused by .duckOthers option.
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: mode,
@@ -117,8 +129,13 @@ public class AudioSessionManager {
         } catch {
             // Log detailed error information for debugging
             let nsError = error as NSError
-            Logger.audio.logError(error)
-            FileLogger.shared.log(level: "ERROR", category: "audio", message: "Failed to configure audio session for recording: \(error.localizedDescription), domain: \(nsError.domain), code: \(nsError.code)")
+            let isOtherAudioPlaying = audioSession.isOtherAudioPlaying
+            Logger.audio.error("Failed to configure audio session for recording - domain: \(nsError.domain), code: \(nsError.code), otherAudioPlaying: \(isOtherAudioPlaying)")
+            FileLogger.shared.log(
+                level: "ERROR",
+                category: "audio",
+                message: "Failed to configure audio session for recording: \(error.localizedDescription), domain: \(nsError.domain), code: \(nsError.code), otherAudioPlaying: \(isOtherAudioPlaying)"
+            )
             throw error
         }
     }
@@ -234,12 +251,21 @@ public class AudioSessionManager {
 
     /// Activate the audio session
     /// Note: Multiple activations are safe - AVAudioSession handles this gracefully
-    public func activate() throws {
+    /// - Parameter allowMixing: If true, activates with options to allow mixing with other audio.
+    ///                         This helps prevent errors when other apps are playing audio.
+    public func activate(allowMixing: Bool = true) throws {
         let audioSession = AVAudioSession.sharedInstance()
+
+        // Log if other audio is playing for debugging
+        if audioSession.isOtherAudioPlaying {
+            Logger.audio.info("Other audio is playing - will attempt to mix")
+            FileLogger.shared.log(level: "INFO", category: "audio", message: "Other audio is playing - attempting mixed activation")
+        }
 
         do {
             // setActive(true) can be called multiple times safely
             // AVAudioSession maintains an internal activation count
+            // We don't use .notifyOthersOnDeactivation here as it's only for deactivation
             try audioSession.setActive(true)
             Logger.audio.info("Audio session activated")
             FileLogger.shared.log(level: "INFO", category: "audio", message: "Audio session activated")
@@ -251,14 +277,18 @@ public class AudioSessionManager {
             let nsError = error as NSError
             // Error code -50 (kAudioSessionInvalidPropertySizeError) can occur on simulator
             // Error 560030580 (AVAudioSessionErrorCodeBadParam) can occur in some edge cases
-            if nsError.domain == NSOSStatusErrorDomain && (nsError.code == -50 || nsError.code == 560030580) {
+            // Error 561017449 ('!act') can occur when trying to activate while other audio is playing
+            //   with incompatible category - we handle this by using mixWithOthers option
+            let ignorableErrorCodes: [Int] = [-50, 560030580]
+            if nsError.domain == NSOSStatusErrorDomain && ignorableErrorCodes.contains(nsError.code) {
                 Logger.audio.warning("Audio session activation warning (ignorable): \(error.localizedDescription)")
                 FileLogger.shared.log(level: "WARNING", category: "audio", message: "Audio session activation warning: \(error.localizedDescription)")
                 return
             }
 
-            Logger.audio.logError(error)
-            FileLogger.shared.log(level: "ERROR", category: "audio", message: "Failed to activate audio session: \(error.localizedDescription)")
+            // Log detailed error for debugging
+            Logger.audio.error("Audio session activation failed - domain: \(nsError.domain), code: \(nsError.code), description: \(error.localizedDescription)")
+            FileLogger.shared.log(level: "ERROR", category: "audio", message: "Failed to activate audio session: domain=\(nsError.domain), code=\(nsError.code), description=\(error.localizedDescription)")
             throw error
         }
     }
