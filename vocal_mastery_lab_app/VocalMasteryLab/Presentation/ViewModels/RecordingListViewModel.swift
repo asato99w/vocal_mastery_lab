@@ -336,10 +336,12 @@ public class RecordingListViewModel: ObservableObject {
             return
         }
 
-        // Different recording selected - stop current playback immediately
+        // Different recording selected - stop current playback completely
+        // Must use stop() instead of pause() to properly release the continuation
+        // in AVAudioPlayerWrapper, otherwise the old continuation remains and
+        // prevents new playback from starting
         if playingRecordingId != nil {
-            // Use synchronous stop to avoid blocking UI
-            audioPlayer.pause()
+            await audioPlayer.stop()
             playingRecordingId = nil
             stopPositionTracking()
         }
