@@ -38,16 +38,28 @@ public struct ExtractionResultData: Equatable {
     }
 }
 
+/// Audio source type for playback
+public enum PlaybackSource {
+    case none
+    case original
+    case vocal
+    case instrumental
+}
+
 /// ViewModel for vocal extraction
 @MainActor
 public class VocalExtractionViewModel: ObservableObject {
     @Published public var state: VocalExtractionState = .idle
     @Published public var isSaving: Bool = false
+    @Published public private(set) var playingSource: PlaybackSource = .none
+    @Published public private(set) var currentTime: TimeInterval = 0.0
+    @Published public private(set) var isPlaying: Bool = false
 
     private let recording: Recording
     private let extractor: VocalExtractorProtocol
     private let extractedAudioRepository: ExtractedAudioRepositoryProtocol
     private let audioPlayer: AudioPlayerProtocol
+    private var positionTrackingTask: Task<Void, Never>?
 
     public init(
         recording: Recording,
@@ -59,6 +71,10 @@ public class VocalExtractionViewModel: ObservableObject {
         self.extractor = extractor
         self.extractedAudioRepository = extractedAudioRepository
         self.audioPlayer = audioPlayer
+    }
+
+    deinit {
+        positionTrackingTask?.cancel()
     }
 
     /// Start the extraction process
@@ -133,25 +149,103 @@ public class VocalExtractionViewModel: ObservableObject {
 
     /// Play original audio
     public func playOriginal() async {
+        await stopPlayback()
+        playingSource = .original
+        isPlaying = true
+        currentTime = 0
+        startPositionTracking()
         try? await audioPlayer.play(url: recording.fileURL)
+        await handlePlaybackFinished()
     }
 
     /// Play vocal track
     public func playVocal() async {
         guard case .completed(let result) = state else { return }
+        await stopPlayback()
+        playingSource = .vocal
+        isPlaying = true
+        currentTime = 0
+        startPositionTracking()
         try? await audioPlayer.play(url: result.vocalURL)
+        await handlePlaybackFinished()
     }
 
     /// Play instrumental track
     public func playInstrumental() async {
         guard case .completed(let result) = state,
               let instrumentalURL = result.instrumentalURL else { return }
+        await stopPlayback()
+        playingSource = .instrumental
+        isPlaying = true
+        currentTime = 0
+        startPositionTracking()
         try? await audioPlayer.play(url: instrumentalURL)
+        await handlePlaybackFinished()
+    }
+
+    /// Toggle play/pause
+    public func togglePlayPause() {
+        if audioPlayer.isPlaying {
+            audioPlayer.pause()
+            isPlaying = false
+        } else {
+            audioPlayer.resume()
+            isPlaying = true
+        }
+    }
+
+    /// Seek to position
+    public func seek(to time: TimeInterval) {
+        audioPlayer.seek(to: time)
+        currentTime = time
     }
 
     /// Stop playback
     public func stopPlayback() async {
+        stopPositionTracking()
         await audioPlayer.stop()
+        playingSource = .none
+        isPlaying = false
+        currentTime = 0
+    }
+
+    /// Current duration based on playing source
+    public var currentDuration: TimeInterval {
+        switch playingSource {
+        case .none:
+            return recording.duration.seconds
+        case .original:
+            return recording.duration.seconds
+        case .vocal, .instrumental:
+            if case .completed(let result) = state {
+                return result.duration.seconds
+            }
+            return 0
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    private func startPositionTracking() {
+        stopPositionTracking()
+        positionTrackingTask = Task { @MainActor in
+            while !Task.isCancelled {
+                currentTime = audioPlayer.currentTime
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            }
+        }
+    }
+
+    private func stopPositionTracking() {
+        positionTrackingTask?.cancel()
+        positionTrackingTask = nil
+    }
+
+    private func handlePlaybackFinished() async {
+        stopPositionTracking()
+        playingSource = .none
+        isPlaying = false
+        currentTime = 0
     }
 
     /// Get recording info
@@ -161,6 +255,11 @@ public class VocalExtractionViewModel: ObservableObject {
 
     public var recordingDuration: String {
         formatTime(recording.duration.seconds)
+    }
+
+    /// Original recording duration in seconds
+    public var originalDurationSeconds: TimeInterval {
+        recording.duration.seconds
     }
 
     public var recordingDate: String {

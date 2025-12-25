@@ -123,44 +123,82 @@ public struct VocalExtractionView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(ColorPalette.text)
 
-            // Preview section
-            VStack(spacing: 12) {
-                Text("プレビュー")
-                    .font(.headline)
-                    .foregroundColor(ColorPalette.text)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                PreviewButton(
+            // Preview section - Mini player style
+            VStack(spacing: 0) {
+                MiniPlayerRow(
                     title: "元の音声",
                     icon: "waveform",
-                    action: { Task { await viewModel.playOriginal() } }
+                    isActive: viewModel.playingSource == .original,
+                    isPlaying: viewModel.playingSource == .original && viewModel.isPlaying,
+                    currentTime: viewModel.playingSource == .original ? viewModel.currentTime : 0,
+                    duration: viewModel.originalDurationSeconds,
+                    onPlayPause: {
+                        if viewModel.playingSource == .original {
+                            viewModel.togglePlayPause()
+                        } else {
+                            Task { await viewModel.playOriginal() }
+                        }
+                    },
+                    onSeek: { time in
+                        if viewModel.playingSource == .original {
+                            viewModel.seek(to: time)
+                        }
+                    }
                 )
 
-                PreviewButton(
+                Divider()
+
+                MiniPlayerRow(
                     title: "ボーカル",
                     icon: "person.wave.2",
-                    action: { Task { await viewModel.playVocal() } }
+                    isActive: viewModel.playingSource == .vocal,
+                    isPlaying: viewModel.playingSource == .vocal && viewModel.isPlaying,
+                    currentTime: viewModel.playingSource == .vocal ? viewModel.currentTime : 0,
+                    duration: result.duration.seconds,
+                    onPlayPause: {
+                        if viewModel.playingSource == .vocal {
+                            viewModel.togglePlayPause()
+                        } else {
+                            Task { await viewModel.playVocal() }
+                        }
+                    },
+                    onSeek: { time in
+                        if viewModel.playingSource == .vocal {
+                            viewModel.seek(to: time)
+                        }
+                    }
                 )
 
                 if result.instrumentalURL != nil {
-                    PreviewButton(
+                    Divider()
+
+                    MiniPlayerRow(
                         title: "伴奏",
                         icon: "music.note.list",
-                        action: { Task { await viewModel.playInstrumental() } }
+                        isActive: viewModel.playingSource == .instrumental,
+                        isPlaying: viewModel.playingSource == .instrumental && viewModel.isPlaying,
+                        currentTime: viewModel.playingSource == .instrumental ? viewModel.currentTime : 0,
+                        duration: result.duration.seconds,
+                        onPlayPause: {
+                            if viewModel.playingSource == .instrumental {
+                                viewModel.togglePlayPause()
+                            } else {
+                                Task { await viewModel.playInstrumental() }
+                            }
+                        },
+                        onSeek: { time in
+                            if viewModel.playingSource == .instrumental {
+                                viewModel.seek(to: time)
+                            }
+                        }
                     )
                 }
-
-                Button("停止") {
-                    Task { await viewModel.stopPlayback() }
-                }
-                .font(.caption)
-                .foregroundColor(ColorPalette.text.opacity(0.6))
             }
-            .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(ColorPalette.secondary)
             )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -261,30 +299,65 @@ public struct VocalExtractionView: View {
     }
 }
 
-// MARK: - Preview Button
+// MARK: - Mini Player Row
 
-private struct PreviewButton: View {
+private struct MiniPlayerRow: View {
     let title: String
     let icon: String
-    let action: () -> Void
+    let isActive: Bool
+    let isPlaying: Bool
+    let currentTime: TimeInterval
+    let duration: TimeInterval
+    let onPlayPause: () -> Void
+    let onSeek: (TimeInterval) -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack {
+        HStack(spacing: 12) {
+            // Icon and title
+            HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .frame(width: 24)
+                    .font(.system(size: 16))
+                    .frame(width: 20)
                 Text(title)
-                Spacer()
-                Image(systemName: "play.fill")
-                    .font(.caption)
+                    .font(.subheadline)
+                    .fontWeight(isActive ? .semibold : .regular)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(ColorPalette.background)
+            .foregroundColor(isActive ? ColorPalette.primary : ColorPalette.text)
+            .frame(width: 90, alignment: .leading)
+
+            // Play/Pause button
+            Button(action: onPlayPause) {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(isActive ? ColorPalette.primary : ColorPalette.text.opacity(0.6))
+                    .frame(width: 24, height: 24)
+            }
+
+            // Slider
+            Slider(
+                value: Binding(
+                    get: { currentTime },
+                    set: { onSeek($0) }
+                ),
+                in: 0...max(duration, 0.1)
             )
+            .accentColor(isActive ? ColorPalette.primary : ColorPalette.text.opacity(0.3))
+            .disabled(!isActive)
+
+            // Time
+            Text(formatTime(isActive ? currentTime : 0))
+                .font(.caption)
+                .foregroundColor(ColorPalette.text.opacity(0.6))
+                .frame(width: 36, alignment: .trailing)
         }
-        .foregroundColor(ColorPalette.text)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(isActive ? ColorPalette.primary.opacity(0.08) : Color.clear)
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
