@@ -355,16 +355,14 @@ private struct MiniPlayerRow: View {
                     .frame(width: 24, height: 24)
             }
 
-            // Slider
-            Slider(
-                value: Binding(
-                    get: { currentTime },
-                    set: { onSeek($0) }
-                ),
-                in: 0...max(duration, 0.1)
+            // Custom seek bar with hidden thumb
+            SeekBar(
+                value: currentTime,
+                range: 0...max(duration, 0.1),
+                isEnabled: isActive,
+                accentColor: isActive ? ColorPalette.primary : ColorPalette.text.opacity(0.3),
+                onSeek: onSeek
             )
-            .accentColor(isActive ? ColorPalette.primary : ColorPalette.text.opacity(0.3))
-            .disabled(!isActive)
 
             // Time
             Text(formatTime(isActive ? currentTime : 0))
@@ -381,5 +379,82 @@ private struct MiniPlayerRow: View {
         let minutes = Int(seconds) / 60
         let secs = Int(seconds) % 60
         return String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+// MARK: - Custom Seek Bar
+
+private struct SeekBar: View {
+    let value: TimeInterval
+    let range: ClosedRange<TimeInterval>
+    let isEnabled: Bool
+    let accentColor: Color
+    let onSeek: (TimeInterval) -> Void
+
+    @State private var isDragging: Bool = false
+    @State private var dragValue: TimeInterval?
+
+    private let trackHeight: CGFloat = 4
+    private let thumbSize: CGFloat = 14
+
+    private var displayValue: TimeInterval {
+        dragValue ?? value
+    }
+
+    private var progress: Double {
+        let rangeSpan = range.upperBound - range.lowerBound
+        guard rangeSpan > 0 else { return 0 }
+        return (displayValue - range.lowerBound) / rangeSpan
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let trackWidth = geometry.size.width
+
+            ZStack(alignment: .leading) {
+                // Background track
+                Capsule()
+                    .fill(ColorPalette.text.opacity(0.15))
+                    .frame(height: trackHeight)
+
+                // Progress track
+                Capsule()
+                    .fill(accentColor)
+                    .frame(width: max(0, trackWidth * progress), height: trackHeight)
+
+                // Thumb (visible only when dragging or recently interacted)
+                if isDragging && isEnabled {
+                    Circle()
+                        .fill(accentColor)
+                        .frame(width: thumbSize, height: thumbSize)
+                        .offset(x: max(0, min(trackWidth - thumbSize, trackWidth * progress - thumbSize / 2)))
+                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                }
+            }
+            .frame(height: max(trackHeight, thumbSize))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        guard isEnabled else { return }
+                        isDragging = true
+                        let newProgress = gesture.location.x / trackWidth
+                        let clampedProgress = max(0, min(1, newProgress))
+                        let rangeSpan = range.upperBound - range.lowerBound
+                        dragValue = range.lowerBound + clampedProgress * rangeSpan
+                    }
+                    .onEnded { gesture in
+                        guard isEnabled else { return }
+                        let newProgress = gesture.location.x / trackWidth
+                        let clampedProgress = max(0, min(1, newProgress))
+                        let rangeSpan = range.upperBound - range.lowerBound
+                        let newValue = range.lowerBound + clampedProgress * rangeSpan
+                        onSeek(newValue)
+                        dragValue = nil
+                        isDragging = false
+                    }
+            )
+        }
+        .frame(height: max(trackHeight, thumbSize))
     }
 }
