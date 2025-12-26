@@ -204,16 +204,19 @@ public class RecordingListViewModel: ObservableObject {
         // Only switch if the source is available
         guard isSourceAvailable(source) else { return }
 
+        // Don't do anything if already on this source
+        guard selectedAudioSource != source else { return }
+
         selectedAudioSource = source
 
-        // If currently playing, restart with new source
-        if playingRecordingId == recording.id {
-            audioPlayer.pause()
-            currentPlaybackPosition[recording.id] = 0.0
-            currentTime = 0.0
-            await playRecording(recording, source: source)
-            await startPositionTracking()
-        }
+        // Stop current playback and start with new source
+        // This works whether currently playing or paused
+        await audioPlayer.stop()
+        currentPlaybackPosition[recording.id] = 0.0
+        currentTime = 0.0
+        playingRecordingId = recording.id
+        await playRecording(recording, source: source)
+        await startPositionTracking()
     }
 
     /// Pause playback (keeps position)
@@ -320,7 +323,8 @@ public class RecordingListViewModel: ObservableObject {
 
     /// Seek to a specific position for a specific recording
     public func seek(to position: TimeInterval, for recordingId: RecordingId) async {
-        guard playingRecordingId == recordingId else { return }
+        // Allow seeking if this recording is selected (playing or paused)
+        guard selectedRecording?.id == recordingId else { return }
         audioPlayer.seek(to: position)
         currentPlaybackPosition[recordingId] = position
         currentTime = position
