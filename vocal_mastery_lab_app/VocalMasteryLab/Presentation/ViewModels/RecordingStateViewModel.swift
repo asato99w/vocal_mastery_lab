@@ -51,7 +51,7 @@ public class RecordingStateViewModel: ObservableObject {
 
     // MARK: - Private Properties
 
-    private var countdownTask: Task<Void, Never>?
+    private var countdownTimer: DispatchSourceTimer?
     private var durationMonitorTask: Task<Void, Never>?
     private var recordingStartTime: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -189,35 +189,48 @@ public class RecordingStateViewModel: ObservableObject {
         recordingState = .countdown
         countdownValue = countdownDuration
 
-        // Create countdown task
-        countdownTask = Task { [weak self] in
+        // Create countdown timer using DispatchSourceTimer for background support
+        startCountdownTimer()
+    }
+
+    /// Start countdown timer using DispatchSourceTimer (works in background)
+    private func startCountdownTimer() {
+        // Cancel any existing timer
+        countdownTimer?.cancel()
+
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 1.0, repeating: 1.0)
+
+        var remaining = countdownDuration
+
+        timer.setEventHandler { [weak self] in
             guard let self = self else { return }
 
-            // Countdown: countdownDuration, ..., 2, 1
-            for value in (1...self.countdownDuration).reversed() {
-                if Task.isCancelled { return }
+            Task { @MainActor in
+                remaining -= 1
 
-                await MainActor.run {
-                    self.countdownValue = value
+                if remaining > 0 {
+                    self.countdownValue = remaining
+                } else {
+                    // Countdown complete
+                    self.countdownTimer?.cancel()
+                    self.countdownTimer = nil
+                    self.isCountdownComplete = true
+                    await self.executeRecording()
                 }
-
-                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
             }
-
-            if Task.isCancelled { return }
-
-            // Countdown complete, set flag before executing recording
-            await MainActor.run { self.isCountdownComplete = true }
-            await self.executeRecording()
         }
+
+        countdownTimer = timer
+        timer.resume()
     }
 
     /// Cancel the countdown before recording starts
     public func cancelCountdown() async {
         guard recordingState == .countdown else { return }
 
-        countdownTask?.cancel()
-        countdownTask = nil
+        countdownTimer?.cancel()
+        countdownTimer = nil
         recordingState = .idle
         countdownValue = countdownDuration
         isCountdownComplete = false
@@ -421,7 +434,7 @@ public class RecordingStateViewModel: ObservableObject {
     }
 
     deinit {
-        countdownTask?.cancel()
+        countdownTimer?.cancel()
         durationMonitorTask?.cancel()
     }
 }

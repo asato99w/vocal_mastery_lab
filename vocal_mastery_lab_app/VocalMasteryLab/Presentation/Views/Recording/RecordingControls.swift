@@ -8,6 +8,7 @@ struct RecordingControls: View {
     let hasLastRecording: Bool
     let isPlayingRecording: Bool
     let canStartRecording: Bool
+    let countdownValue: Int
     let onStart: () -> Void
     let onStop: () -> Void
     let onCancel: () -> Void
@@ -22,6 +23,7 @@ struct RecordingControls: View {
         hasLastRecording: Bool,
         isPlayingRecording: Bool,
         canStartRecording: Bool,
+        countdownValue: Int = 3,
         onStart: @escaping () -> Void,
         onStop: @escaping () -> Void,
         onCancel: @escaping () -> Void,
@@ -33,6 +35,7 @@ struct RecordingControls: View {
         self.hasLastRecording = hasLastRecording
         self.isPlayingRecording = isPlayingRecording
         self.canStartRecording = canStartRecording
+        self.countdownValue = countdownValue
         self.onStart = onStart
         self.onStop = onStop
         self.onCancel = onCancel
@@ -170,10 +173,13 @@ struct RecordingControls: View {
     // MARK: - Countdown State Controls
 
     private var countdownControls: some View {
-        VStack(spacing: 8) {
-            Text("recording.countdown_message".localized)
-                .font(.subheadline)
-                .fontWeight(.medium)
+        VStack(spacing: 16) {
+            // Countdown number display (consistent with timer: 48pt monospaced)
+            Text("\(countdownValue)")
+                .font(.system(size: 48, weight: .light, design: .monospaced))
+                .foregroundColor(ColorPalette.primary)
+                .accessibilityIdentifier("CountdownNumber")
+                .accessibilityLabel("カウントダウン \(countdownValue)")
 
             Button(action: onCancel) {
                 Text("cancel".localized)

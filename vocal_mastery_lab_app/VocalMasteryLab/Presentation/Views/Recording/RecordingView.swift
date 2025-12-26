@@ -45,6 +45,7 @@ public struct RecordingView: View {
                 hasLastRecording: viewModel.lastRecordingURL != nil,
                 isPlayingRecording: viewModel.isPlayingRecording,
                 canStartRecording: true,
+                countdownValue: viewModel.countdownValue,
                 onStart: startRecording,
                 onStop: stopRecording,
                 onCancel: cancelCountdown,
