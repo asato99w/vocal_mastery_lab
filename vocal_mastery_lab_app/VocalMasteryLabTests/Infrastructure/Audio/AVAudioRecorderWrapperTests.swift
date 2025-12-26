@@ -31,7 +31,7 @@ final class AVAudioRecorderWrapperTests: XCTestCase {
 
         // Then
         XCTAssertNotNil(url)
-        XCTAssertTrue(url.pathExtension == "m4a")
+        XCTAssertTrue(url.pathExtension == "wav")
         XCTAssertTrue(url.path.contains("recording_"))
     }
 
