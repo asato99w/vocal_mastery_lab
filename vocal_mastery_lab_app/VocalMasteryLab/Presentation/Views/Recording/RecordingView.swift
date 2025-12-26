@@ -34,6 +34,11 @@ public struct RecordingView: View {
             // Timer display
             timerSection
 
+            // Backing track selection (only shown when not recording)
+            if viewModel.recordingState == .idle {
+                backingTrackSection
+            }
+
             // Record controls (uses existing RecordingControls component)
             RecordingControls(
                 recordingState: viewModel.recordingState,
@@ -116,6 +121,16 @@ public struct RecordingView: View {
         .onAppear {
             // Reload audio settings when returning to recording screen
             viewModel.reloadAudioSettings(from: DependencyContainer.shared.audioSettingsRepository)
+
+            // Set up backing track repositories and load tracks
+            viewModel.setBackingTrackRepositories(
+                recordingRepository: DependencyContainer.shared.recordingRepository,
+                extractedAudioRepository: DependencyContainer.shared.extractedAudioRepository,
+                backingTrackPlayer: DependencyContainer.shared.createBackingTrackPlayer()
+            )
+            Task {
+                await viewModel.loadBackingTracks()
+            }
         }
         .onDisappear {
             stopTimer()
@@ -171,6 +186,81 @@ public struct RecordingView: View {
                 .foregroundColor(ColorPalette.text.opacity(0.6))
         }
         .accessibilityIdentifier("BackgroundRecordingHint")
+    }
+
+    // MARK: - Backing Track Section
+
+    private var backingTrackSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("バッキングトラック")
+                .font(.subheadline)
+                .foregroundColor(ColorPalette.text.opacity(0.8))
+                .accessibilityIdentifier("BackingTrackLabel")
+
+            // Recording picker
+            Menu {
+                Button("なし") {
+                    viewModel.clearBackingTrack()
+                }
+
+                ForEach(viewModel.availableBackingTracks) { track in
+                    Button(track.displayTitle) {
+                        viewModel.selectedBackingTrack = track
+                        // Auto-select first available source
+                        viewModel.selectedBackingSource = track.availableSources.first
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(viewModel.selectedBackingTrack?.displayTitle ?? "なし")
+                        .foregroundColor(ColorPalette.text)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .foregroundColor(ColorPalette.text.opacity(0.5))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(ColorPalette.secondary)
+                )
+            }
+            .accessibilityIdentifier("BackingTrackPicker")
+
+            // Available tracks count for testing (hidden but accessible)
+            Text("利用可能: \(viewModel.availableBackingTracks.count)件")
+                .font(.caption2)
+                .foregroundColor(ColorPalette.text.opacity(0.5))
+                .accessibilityIdentifier("BackingTrackCount")
+
+            // Source picker (only shown when track is selected)
+            if let track = viewModel.selectedBackingTrack {
+                Menu {
+                    ForEach(track.availableSources, id: \.self) { source in
+                        Button(source.rawValue) {
+                            viewModel.selectedBackingSource = source
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(viewModel.selectedBackingSource?.rawValue ?? "選択してください")
+                            .foregroundColor(ColorPalette.text)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .foregroundColor(ColorPalette.text.opacity(0.5))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(ColorPalette.secondary)
+                    )
+                }
+                .accessibilityIdentifier("BackingSourcePicker")
+            }
+        }
+        .padding(.horizontal)
+        .accessibilityIdentifier("BackingTrackSection")
     }
 
     // MARK: - Last Recording Info Section

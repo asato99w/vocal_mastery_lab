@@ -201,6 +201,12 @@ public class DependencyContainer {
         AlgorithmSettingsViewModel(repository: audioSettingsRepository)
     }
 
+    /// Create a new audio player instance for backing track playback
+    /// This creates a separate player instance to avoid conflicts with the main audio player
+    public func createBackingTrackPlayer() -> AudioPlayerProtocol {
+        AVAudioPlayerWrapper(settingsRepository: audioSettingsRepository)
+    }
+
     // MARK: - Setup
 
     private func setupInfrastructure() {

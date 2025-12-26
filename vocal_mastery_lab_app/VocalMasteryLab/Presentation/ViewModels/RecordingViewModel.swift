@@ -12,6 +12,36 @@ public enum RecordingState: Equatable {
     case recording
 }
 
+/// Backing track source type
+public enum BackingTrackSource: String, CaseIterable {
+    case original = "元音源"
+    case vocal = "ボーカル"
+    case instrumental = "伴奏"
+}
+
+/// Backing track info for selection
+public struct BackingTrackInfo: Identifiable, Equatable {
+    public let id: RecordingId
+    public let recording: Recording
+    public let availableSources: [BackingTrackSource]
+    public let extractedAudios: [ExtractedAudio]
+
+    public var displayTitle: String {
+        recording.title ?? recording.formattedDate
+    }
+
+    public func fileURL(for source: BackingTrackSource) -> URL? {
+        switch source {
+        case .original:
+            return recording.fileURL
+        case .vocal:
+            return extractedAudios.first { $0.type == .vocal }?.fileURL
+        case .instrumental:
+            return extractedAudios.first { $0.type == .instrumental }?.fileURL
+        }
+    }
+}
+
 /// Coordinator ViewModel for the main recording screen
 /// Delegates responsibilities to RecordingStateViewModel and PitchDetectionViewModel
 @MainActor
@@ -48,6 +78,15 @@ public class RecordingViewModel: ObservableObject {
     @Published public var pitchAccuracy: PitchAccuracy = .none
     @Published public var spectrum: [Float]?
     @Published public var audioLevel: Float = -160.0  // dB value (-160 to 0)
+
+    // MARK: - Backing Track Properties
+
+    @Published public private(set) var availableBackingTracks: [BackingTrackInfo] = []
+    @Published public var selectedBackingTrack: BackingTrackInfo?
+    @Published public var selectedBackingSource: BackingTrackSource?
+    private var backingTrackPlayer: AudioPlayerProtocol?
+    private var recordingRepository: RecordingRepositoryProtocol?
+    private var extractedAudioRepository: ExtractedAudioRepositoryProtocol?
 
     // MARK: - Initialization
 
@@ -202,6 +241,11 @@ public class RecordingViewModel: ObservableObject {
         }
         Logger.viewModel.info("Recording started - starting pitch detection")
 
+        // Start backing track playback if selected
+        if selectedBackingTrack != nil && selectedBackingSource != nil {
+            await startBackingTrackPlayback()
+        }
+
         do {
             try await pitchDetector.startRealtimeDetection()
             Logger.viewModel.info("Realtime pitch detection started")
@@ -223,11 +267,17 @@ public class RecordingViewModel: ObservableObject {
         // Stop pitch detection
         pitchDetector.stopRealtimeDetection()
 
+        // Stop backing track playback if playing
+        await stopBackingTrackPlayback()
+
         // Stop recording
         await recordingStateVM.stopRecording()
 
         // Reset pitch detection state
         pitchDetectionVM.reset()
+
+        // Reload backing tracks to include the new recording
+        await loadBackingTracks()
     }
 
     /// Play the last recording
@@ -286,5 +336,108 @@ public class RecordingViewModel: ObservableObject {
             pitchDetector.updateSettings(settings)
             Logger.viewModel.info("Audio settings reloaded: RMS=\(settings.rmsSilenceThreshold), Confidence=\(settings.confidenceThreshold)")
         }
+    }
+
+    // MARK: - Backing Track Methods
+
+    /// Set repositories for backing track functionality
+    public func setBackingTrackRepositories(
+        recordingRepository: RecordingRepositoryProtocol,
+        extractedAudioRepository: ExtractedAudioRepositoryProtocol,
+        backingTrackPlayer: AudioPlayerProtocol
+    ) {
+        self.recordingRepository = recordingRepository
+        self.extractedAudioRepository = extractedAudioRepository
+        self.backingTrackPlayer = backingTrackPlayer
+    }
+
+    /// Load available backing tracks (all recordings)
+    public func loadBackingTracks() async {
+        guard let recordingRepo = recordingRepository,
+              let extractedRepo = extractedAudioRepository else {
+            Logger.viewModel.warning("Backing track repositories not set")
+            return
+        }
+
+        do {
+            let recordings = try await recordingRepo.findAll()
+            let allExtracted = try await extractedRepo.findAll()
+
+            Logger.viewModel.info("[BackingTrack] Total recordings from repository: \(recordings.count)")
+            Logger.viewModel.info("[BackingTrack] Total extracted audios: \(allExtracted.count)")
+
+            // Group extracted audio by recording ID
+            var extractedByRecording: [RecordingId: [ExtractedAudio]] = [:]
+            for extracted in allExtracted {
+                extractedByRecording[extracted.sourceRecordingId, default: []].append(extracted)
+            }
+
+            // Build backing track info list (all recordings)
+            var tracks: [BackingTrackInfo] = []
+            for recording in recordings {
+                let extractedAudios = extractedByRecording[recording.id] ?? []
+
+                // Always include original source
+                var sources: [BackingTrackSource] = [.original]
+
+                // Add vocal/instrumental if extracted
+                if extractedAudios.contains(where: { $0.type == .vocal }) {
+                    sources.append(.vocal)
+                }
+                if extractedAudios.contains(where: { $0.type == .instrumental }) {
+                    sources.append(.instrumental)
+                }
+
+                Logger.viewModel.debug("[BackingTrack] Adding: \(recording.title ?? recording.formattedDate), sources: \(sources.map { $0.rawValue })")
+
+                tracks.append(BackingTrackInfo(
+                    id: recording.id,
+                    recording: recording,
+                    availableSources: sources,
+                    extractedAudios: extractedAudios
+                ))
+            }
+
+            availableBackingTracks = tracks
+            Logger.viewModel.info("[BackingTrack] Final tracks count: \(tracks.count)")
+
+        } catch {
+            Logger.viewModel.error("Failed to load backing tracks: \(error.localizedDescription)")
+        }
+    }
+
+    /// Clear backing track selection
+    public func clearBackingTrack() {
+        selectedBackingTrack = nil
+        selectedBackingSource = nil
+    }
+
+    /// Start playing the selected backing track
+    public func startBackingTrackPlayback() async {
+        guard let track = selectedBackingTrack,
+              let source = selectedBackingSource,
+              let url = track.fileURL(for: source),
+              let player = backingTrackPlayer else {
+            return
+        }
+
+        Logger.viewModel.info("Starting backing track playback: \(url.lastPathComponent)")
+
+        // Fire and forget - don't await completion
+        Task {
+            do {
+                try await player.play(url: url)
+                Logger.viewModel.info("Backing track playback finished")
+            } catch {
+                Logger.viewModel.error("Backing track playback error: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Stop playing the backing track
+    public func stopBackingTrackPlayback() async {
+        guard let player = backingTrackPlayer else { return }
+        await player.stop()
+        Logger.viewModel.info("Backing track playback stopped")
     }
 }
