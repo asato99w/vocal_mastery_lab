@@ -13,13 +13,13 @@ final class AnalysisUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Test: Analysis view display and basic playback controls
-    /// Expected: ~20 seconds execution time
-    @MainActor
-    func testAnalysisViewDisplay() throws {
-        let app = launchAppWithResetRecordingCount()
+    // MARK: - Helper Methods
 
-        // 1. Create a recording first
+    /// Create a recording and perform vocal extraction, then navigate to recording list
+    /// This is required because analysis screen requires extracted vocals
+    @MainActor
+    private func createRecordingWithExtraction(_ app: XCUIApplication) {
+        // 1. Navigate to Recording screen and create a recording
         let homeRecordButton = app.buttons["HomeRecordButton"]
         XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 5), "Home record button should exist")
         homeRecordButton.tap()
@@ -37,43 +37,99 @@ final class AnalysisUITests: XCTestCase {
 
         stopButton.tap()
 
-        // Wait for recording to be saved by checking PlayButton appearance
+        // Wait for recording to be saved
         let playButton = app.buttons["PlayLastRecordingButton"]
         XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after save")
 
-        // 2. Navigate to Recording List
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        // 2. Navigate to Vocal Extraction screen
+        let vocalButton = app.buttons["VocalExtractionButton"]
+        XCTAssertTrue(vocalButton.waitForExistence(timeout: 5), "Vocal extraction button should be visible")
+        vocalButton.tap()
 
+        // Wait for extraction screen to load
+        let extractionTitle = app.navigationBars["ボーカル抽出"]
+        XCTAssertTrue(extractionTitle.waitForExistence(timeout: 5), "Should navigate to vocal extraction screen")
+
+        // 3. Start extraction
+        let startExtractionButton = app.buttons["抽出開始"]
+        XCTAssertTrue(startExtractionButton.waitForExistence(timeout: 3), "Start extraction button should be visible")
+        startExtractionButton.tap()
+
+        // 4. Wait for extraction to complete (this may take time depending on model)
+        // Look for the completion indicator or save button
+        let saveButton = app.buttons["保存"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 120), "Extraction should complete and show save button")
+
+        // 5. Save the extraction
+        saveButton.tap()
+
+        // 6. Wait to return to recording screen
+        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Should return to recording screen after save")
+
+        // 7. Navigate back to Home
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 5), "Should return to home screen")
+    }
+
+    /// Navigate to recording list
+    @MainActor
+    private func navigateToRecordingList(_ app: XCUIApplication) {
         let homeListButton = app.buttons["HomeListButton"]
         XCTAssertTrue(homeListButton.waitForExistence(timeout: 5), "Home list button should exist")
         homeListButton.tap()
 
-        // Wait for recording list to load
-        let analysisLinks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisLinks.firstMatch.waitForExistence(timeout: 5), "Analysis navigation link should exist")
+        // Wait for list to load by checking for cells
+        let cells = app.cells
+        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 5), "Recording cell should appear in list")
+    }
 
-        // 3. Navigate to Analysis screen
-        analysisLinks.firstMatch.tap()
+    /// Navigate to analysis screen via menu (requires extracted vocals)
+    @MainActor
+    private func navigateToAnalysisViaMenu(_ app: XCUIApplication) {
+        // Find and tap the menu button for the first recording
+        let menuButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "MenuButton_"))
+        XCTAssertTrue(menuButtons.firstMatch.waitForExistence(timeout: 3), "Menu button should exist for recording")
+        menuButtons.firstMatch.tap()
+
+        // Tap the analysis option in the menu
+        let analysisMenuItem = app.buttons["分析"]
+        XCTAssertTrue(analysisMenuItem.waitForExistence(timeout: 3), "Analysis menu item should exist")
+        analysisMenuItem.tap()
 
         // Wait for analysis screen to load
-        // Note: In portrait mode, RecordingInfoCompact is used (not RecordingInfoPanel with "Recording Info" title)
         let recordingInfoCompact = app.otherElements["RecordingInfoCompact"]
         XCTAssertTrue(recordingInfoCompact.waitForExistence(timeout: 10), "Analysis screen should load")
+    }
+
+    // MARK: - Tests
+
+    /// Test: Analysis view display and basic playback controls
+    /// Expected: ~2 minutes execution time (includes vocal extraction)
+    @MainActor
+    func testAnalysisViewDisplay() throws {
+        let app = launchAppWithResetRecordingCount()
+
+        // 1. Create a recording with vocal extraction
+        createRecordingWithExtraction(app)
+
+        // 2. Navigate to Recording List
+        navigateToRecordingList(app)
+
+        // 3. Navigate to Analysis screen via menu
+        navigateToAnalysisViaMenu(app)
 
         // 4. Wait for analysis to complete by checking for playback button
         let playPauseButtonWait = app.buttons["AnalysisPlayPauseButton"]
-        XCTAssertTrue(playPauseButtonWait.waitForExistence(timeout: 10), "Analysis should complete and show playback controls")
+        XCTAssertTrue(playPauseButtonWait.waitForExistence(timeout: 30), "Analysis should complete and show playback controls")
 
-        // Screenshot: Analysis screen after loading (consolidated from 2 screenshots)
+        // Screenshot: Analysis screen after loading
         let screenshot1 = app.screenshot()
         let attachment1 = XCTAttachment(screenshot: screenshot1)
         attachment1.name = "analysis_01_loaded"
         attachment1.lifetime = .keepAlways
         add(attachment1)
 
-        // 5. Verify Recording Info Panel is displayed (already checked during navigation)
-
-        // 6. Verify Playback controls exist
+        // 5. Verify Playback controls exist
         let playPauseButton = app.buttons["AnalysisPlayPauseButton"]
         XCTAssertTrue(playPauseButton.waitForExistence(timeout: 10), "Play/Pause button should exist")
 
@@ -86,19 +142,19 @@ final class AnalysisUITests: XCTestCase {
         let progressSlider = app.sliders["AnalysisProgressSlider"]
         XCTAssertTrue(progressSlider.waitForExistence(timeout: 3), "Progress slider should exist")
 
-        // 7. Test playback controls - Play
+        // 6. Test playback controls - Play
         playPauseButton.tap()
 
-        // Wait a moment for playback to start (minimum time for valid state)
+        // Wait a moment for playback to start
         Thread.sleep(forTimeInterval: 0.5)
 
-        // Verify button changed to pause state (still exists but may show different icon)
+        // Verify button changed to pause state
         XCTAssertTrue(playPauseButton.exists, "Play/Pause button should still exist during playback")
 
-        // 8. Test playback controls - Pause
+        // 7. Test playback controls - Pause
         playPauseButton.tap()
 
-        // 9. Test seek controls
+        // 8. Test seek controls
         seekBackButton.tap()
         seekForwardButton.tap()
 
@@ -109,68 +165,33 @@ final class AnalysisUITests: XCTestCase {
         attachment2.lifetime = .keepAlways
         add(attachment2)
 
-        // 10. Verify navigation back works
+        // 9. Verify navigation back works
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         // Should be back at Recording List
-        let analysisLinksAfterBack = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisLinksAfterBack.firstMatch.waitForExistence(timeout: 3), "Should be back at recording list")
-    }
-
-    // MARK: - Helper Methods
-
-    /// Navigate to analysis screen by creating a recording and navigating to it
-    private func navigateToAnalysisScreen(_ app: XCUIApplication) {
-        // 1. Create a recording
-        let homeRecordButton = app.buttons["HomeRecordButton"]
-        XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 5), "Home record button should exist")
-        homeRecordButton.tap()
-
-        let startButton = app.buttons["StartRecordingButton"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start recording button should exist")
-        startButton.tap()
-
-        let stopButton = app.buttons["StopRecordingButton"]
-        XCTAssertTrue(stopButton.waitForExistence(timeout: 10), "Stop recording button should appear")
-
-        Thread.sleep(forTimeInterval: 1.0)
-        stopButton.tap()
-
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after save")
-
-        // 2. Navigate to Recording List
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-
-        let homeListButton = app.buttons["HomeListButton"]
-        XCTAssertTrue(homeListButton.waitForExistence(timeout: 5), "Home list button should exist")
-        homeListButton.tap()
-
-        // Wait for recording list to load
-        let analysisLinks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisLinks.firstMatch.waitForExistence(timeout: 5), "Analysis navigation link should exist")
-
-        // 3. Navigate to Analysis screen
-        analysisLinks.firstMatch.tap()
-
-        // Wait for analysis screen to load
-        // Note: In portrait mode, RecordingInfoCompact is used (not RecordingInfoPanel with "Recording Info" title)
-        let recordingInfoCompact = app.otherElements["RecordingInfoCompact"]
-        XCTAssertTrue(recordingInfoCompact.waitForExistence(timeout: 10), "Analysis screen should load")
+        let cells = app.cells
+        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 3), "Should be back at recording list")
     }
 
     /// Test: Playback scroll behavior - verify time axis and playback cursor
     /// Purpose: Verify that spectrogram time axis scrolls correctly and returns to start position after playback
+    /// Expected: ~2 minutes execution time (includes vocal extraction)
     @MainActor
     func testPlayback_TimeAxisScroll() throws {
         let app = launchAppWithResetRecordingCount()
 
-        // Navigate to analysis screen
-        navigateToAnalysisScreen(app)
+        // 1. Create a recording with vocal extraction
+        createRecordingWithExtraction(app)
+
+        // 2. Navigate to Recording List
+        navigateToRecordingList(app)
+
+        // 3. Navigate to Analysis screen via menu
+        navigateToAnalysisViaMenu(app)
 
         // Wait for analysis to complete by checking for playback button
         let playPauseButton = app.buttons["AnalysisPlayPauseButton"]
-        XCTAssertTrue(playPauseButton.waitForExistence(timeout: 10), "Play/Pause button should exist")
+        XCTAssertTrue(playPauseButton.waitForExistence(timeout: 30), "Play/Pause button should exist")
 
         // Start playback
         playPauseButton.tap()
@@ -193,16 +214,21 @@ final class AnalysisUITests: XCTestCase {
         XCTAssertTrue(playPauseButton.exists, "Play/Pause button should exist after playback ends")
     }
 
-
-
     /// Test: Spectrogram viewport architecture verification with screenshots
     /// Purpose: Verify that spectrogram fills the entire viewport correctly
+    /// Expected: ~2 minutes execution time (includes vocal extraction)
     @MainActor
     func testSpectrogramViewport_Screenshots() throws {
         let app = launchAppWithResetRecordingCount()
 
-        // Navigate to analysis screen
-        navigateToAnalysisScreen(app)
+        // 1. Create a recording with vocal extraction
+        createRecordingWithExtraction(app)
+
+        // 2. Navigate to Recording List
+        navigateToRecordingList(app)
+
+        // 3. Navigate to Analysis screen via menu
+        navigateToAnalysisViaMenu(app)
 
         // Wait for spectrogram to appear
         let spectrogramView = app.otherElements["SpectrogramView"]

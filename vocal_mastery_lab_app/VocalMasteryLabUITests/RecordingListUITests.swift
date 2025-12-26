@@ -49,9 +49,9 @@ final class RecordingListUITests: XCTestCase {
         XCTAssertTrue(homeListButton.waitForExistence(timeout: 5), "Home list button should exist")
         homeListButton.tap()
 
-        // 4. Wait for list to load by checking for analysis buttons (visible in rows)
-        let analysisButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisButtons.firstMatch.waitForExistence(timeout: 5), "Analysis button should appear in list")
+        // 4. Wait for list to load by checking for cells (recording rows)
+        let cells = app.cells
+        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 5), "Recording cell should appear in list")
     }
 
     /// Navigate directly to the recording list (assumes recording already exists)
@@ -61,9 +61,9 @@ final class RecordingListUITests: XCTestCase {
         XCTAssertTrue(homeListButton.waitForExistence(timeout: 5), "Home list button should exist")
         homeListButton.tap()
 
-        // Wait for list to load by checking for analysis buttons (visible in rows)
-        let analysisButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisButtons.firstMatch.waitForExistence(timeout: 5), "Analysis button should appear in list")
+        // Wait for list to load by checking for cells (recording rows)
+        let cells = app.cells
+        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 5), "Recording cell should appear in list")
     }
 
     // MARK: - Tests
@@ -77,9 +77,6 @@ final class RecordingListUITests: XCTestCase {
         // Create recording and navigate to list
         createRecordingAndNavigateToList(app)
 
-        // 4. Verify recording appears in the list
-        // Wait for list to load by checking for delete buttons
-
         // Screenshot: Recording list
         let screenshot1 = app.screenshot()
         let attachment1 = XCTAttachment(screenshot: screenshot1)
@@ -88,40 +85,33 @@ final class RecordingListUITests: XCTestCase {
         add(attachment1)
 
         // Verify at least one recording exists in the list
-        // Use prefix match for dynamic identifier that includes recording UUID
-        let analysisLinks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisLinks.firstMatch.waitForExistence(timeout: 5), "At least one recording should exist in the list")
+        let cells = app.cells
+        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 5), "At least one recording should exist in the list")
 
-        // 5. Navigate to Analysis screen by tapping the analysis button
-        analysisLinks.firstMatch.tap()
+        // Verify menu button exists for the recording
+        let menuButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "MenuButton_"))
+        XCTAssertTrue(menuButtons.firstMatch.waitForExistence(timeout: 3), "Menu button should exist for recording")
 
-        // Wait for analysis screen to load by checking for analysis UI elements
-        let analysisPlayButton = app.buttons["AnalysisPlayPauseButton"]
-        XCTAssertTrue(analysisPlayButton.waitForExistence(timeout: 5), "Analysis play button should appear")
-
-        // Screenshot: Analysis screen
+        // Screenshot: Recording list with menu button visible
         let screenshot2 = app.screenshot()
         let attachment2 = XCTAttachment(screenshot: screenshot2)
-        attachment2.name = "list_nav_02_analysis_screen"
+        attachment2.name = "list_nav_02_with_menu"
         attachment2.lifetime = .keepAlways
         add(attachment2)
 
-        // 6. Navigate back to list using back button
+        // Navigate back to home
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
-        // Wait for list to reload by checking analysis buttons visibility
-        let analysisLinksAfterBack = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisLinksAfterBack.firstMatch.waitForExistence(timeout: 3), "Analysis button should reappear after navigation back")
+        // Verify we're back at home
+        let homeRecordButton = app.buttons["HomeRecordButton"]
+        XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 3), "Should be back at home screen")
 
-        // Screenshot: Back to list
+        // Screenshot: Back to home
         let screenshot3 = app.screenshot()
         let attachment3 = XCTAttachment(screenshot: screenshot3)
-        attachment3.name = "list_nav_03_back_to_list"
+        attachment3.name = "list_nav_03_back_to_home"
         attachment3.lifetime = .keepAlways
         add(attachment3)
-
-        // Verify we're back at the list
-        XCTAssertTrue(analysisLinksAfterBack.firstMatch.waitForExistence(timeout: 3), "Should be back at recording list with analysis button visible")
     }
 
     /// Test: Playback position slider appears during playback

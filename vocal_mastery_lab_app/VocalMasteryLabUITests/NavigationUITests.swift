@@ -63,9 +63,9 @@ final class NavigationUITests: XCTestCase {
         XCTAssertTrue(homeListButton.waitForExistence(timeout: 5), "Home list button should exist")
         homeListButton.tap()
 
-        // Wait for list to load by checking for analysis buttons (visible in rows)
-        let analysisLinks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "AnalysisNavigationLink_"))
-        XCTAssertTrue(analysisLinks.firstMatch.waitForExistence(timeout: 5), "Analysis button should appear in list")
+        // Wait for list to load by checking for cells (recording rows)
+        let cells = app.cells
+        XCTAssertTrue(cells.firstMatch.waitForExistence(timeout: 5), "Recording cell should appear in list")
 
         // Screenshot: Recording list with multiple recordings
         let screenshot1 = app.screenshot()
@@ -75,7 +75,7 @@ final class NavigationUITests: XCTestCase {
         add(attachment1)
 
         // 4. Verify both recordings are displayed
-        let recordingCount = analysisLinks.count
+        let recordingCount = cells.count
 
         XCTAssertGreaterThanOrEqual(recordingCount, 2, "At least 2 recordings should be displayed in the list (found \(recordingCount))")
 
