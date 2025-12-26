@@ -54,6 +54,7 @@ public class VocalExtractionViewModel: ObservableObject {
     @Published public private(set) var playingSource: PlaybackSource = .none
     @Published public private(set) var currentTime: TimeInterval = 0.0
     @Published public private(set) var isPlaying: Bool = false
+    @Published public private(set) var extractionCount: Int = 0
 
     private let recording: Recording
     private let extractor: VocalExtractorProtocol
@@ -88,6 +89,7 @@ public class VocalExtractionViewModel: ObservableObject {
                 }
             }
 
+            extractionCount = 1
             state = .completed(result: ExtractionResultData(
                 vocalURL: result.vocalFileURL,
                 instrumentalURL: result.instrumentalFileURL,
@@ -95,6 +97,65 @@ public class VocalExtractionViewModel: ObservableObject {
             ))
         } catch {
             state = .error(message: error.localizedDescription)
+        }
+    }
+
+    /// Start secondary extraction (extract from already extracted vocal for cleaner result)
+    public func startSecondaryExtraction() async {
+        guard case .completed(let currentResult) = state else { return }
+
+        // Store the original instrumental URL and its data for verification
+        let originalInstrumentalURL = currentResult.instrumentalURL
+        let originalInstrumentalData: Data?
+        if let url = originalInstrumentalURL {
+            originalInstrumentalData = try? Data(contentsOf: url)
+        } else {
+            originalInstrumentalData = nil
+        }
+
+        // Keep reference to old vocal URL for cleanup
+        let oldVocalURL = currentResult.vocalURL
+
+        state = .processing(progress: 0.0, stage: "2次抽出 準備中...")
+
+        do {
+            // Extract from the current vocal (not the original recording)
+            let result = try await extractor.extract(from: oldVocalURL) { [weak self] progress, stage in
+                Task { @MainActor in
+                    self?.state = .processing(progress: progress, stage: "2次抽出: \(stage)")
+                }
+            }
+
+            // Verify instrumental hasn't changed (if it existed)
+            if let originalURL = originalInstrumentalURL, let originalData = originalInstrumentalData {
+                // The instrumental from secondary extraction should be ignored
+                // We keep the original instrumental
+                assert(FileManager.default.fileExists(atPath: originalURL.path),
+                       "Original instrumental file should still exist")
+                let currentData = try? Data(contentsOf: originalURL)
+                assert(currentData == originalData,
+                       "Instrumental audio data should not have changed during secondary extraction")
+            }
+
+            // Clean up the old vocal file
+            try? FileManager.default.removeItem(at: oldVocalURL)
+
+            // Clean up the new instrumental from secondary extraction (we don't need it)
+            if let newInstrumentalURL = result.instrumentalFileURL {
+                try? FileManager.default.removeItem(at: newInstrumentalURL)
+            }
+
+            extractionCount += 1
+            // Update state with new vocal but keep original instrumental
+            state = .completed(result: ExtractionResultData(
+                vocalURL: result.vocalFileURL,
+                instrumentalURL: originalInstrumentalURL,  // Keep original instrumental
+                duration: result.duration
+            ))
+        } catch {
+            // Restore previous state on error
+            state = .completed(result: currentResult)
+            state = .error(message: "2次抽出に失敗しました: \(error.localizedDescription)")
         }
     }
 

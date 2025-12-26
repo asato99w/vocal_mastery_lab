@@ -118,7 +118,7 @@ public struct VocalExtractionView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.green)
 
-            Text("抽出完了")
+            Text(viewModel.extractionCount > 1 ? "抽出完了（\(viewModel.extractionCount)次）" : "抽出完了")
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(ColorPalette.text)
@@ -242,45 +242,67 @@ public struct VocalExtractionView: View {
             EmptyView()
 
         case .completed:
-            HStack(spacing: 16) {
+            VStack(spacing: 12) {
+                // 2次抽出ボタン
                 Button(action: {
-                    viewModel.reset()
+                    Task { await viewModel.startSecondaryExtraction() }
                 }) {
-                    Text("やり直し")
-                        .font(.headline)
-                        .foregroundColor(ColorPalette.text)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(ColorPalette.secondary)
-                        .cornerRadius(12)
+                    HStack {
+                        Image(systemName: "waveform.badge.plus")
+                        Text("2次抽出")
+                    }
+                    .font(.headline)
+                    .foregroundColor(ColorPalette.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(ColorPalette.primary.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(ColorPalette.primary, lineWidth: 1)
+                    )
                 }
 
-                Button(action: {
-                    Task {
-                        let success = await viewModel.saveExtraction()
-                        if success {
-                            dismiss()
+                HStack(spacing: 16) {
+                    Button(action: {
+                        viewModel.reset()
+                    }) {
+                        Text("やり直し")
+                            .font(.headline)
+                            .foregroundColor(ColorPalette.text)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(ColorPalette.secondary)
+                            .cornerRadius(12)
+                    }
+
+                    Button(action: {
+                        Task {
+                            let success = await viewModel.saveExtraction()
+                            if success {
+                                dismiss()
+                            }
+                        }
+                    }) {
+                        if viewModel.isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(ColorPalette.primary)
+                                .cornerRadius(12)
+                        } else {
+                            Text("保存")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(ColorPalette.primary)
+                                .cornerRadius(12)
                         }
                     }
-                }) {
-                    if viewModel.isSaving {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(ColorPalette.primary)
-                            .cornerRadius(12)
-                    } else {
-                        Text("保存")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(ColorPalette.primary)
-                            .cornerRadius(12)
-                    }
+                    .disabled(viewModel.isSaving)
                 }
-                .disabled(viewModel.isSaving)
             }
 
         case .error:
