@@ -310,6 +310,8 @@
 "analysis.statistics_button" = "통계";
 "analysis.statistics_short" = "통계";
 "analysis.no_scale" = "녹음된 스케일 없음";
+"analysis.auto_follow_on" = "추적 ON";
+"analysis.auto_follow_off" = "추적 OFF";
 
 // MARK: - Statistics
 "statistics.title" = "통계";

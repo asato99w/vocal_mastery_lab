@@ -316,6 +316,8 @@
 "analysis.statistics_button" = "統計";
 "analysis.statistics_short" = "統計";
 "analysis.no_scale" = "スケールなし";
+"analysis.auto_follow_on" = "追従ON";
+"analysis.auto_follow_off" = "追従OFF";
 
 // MARK: - Statistics Sheet
 "statistics.title" = "統計";

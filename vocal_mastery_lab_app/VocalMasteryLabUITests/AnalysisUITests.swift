@@ -91,9 +91,9 @@ final class AnalysisUITests: XCTestCase {
         XCTAssertTrue(menuButtons.firstMatch.waitForExistence(timeout: 3), "Menu button should exist for recording")
         menuButtons.firstMatch.tap()
 
-        // Tap the analysis option in the menu
-        let analysisMenuItem = app.buttons["分析"]
-        XCTAssertTrue(analysisMenuItem.waitForExistence(timeout: 3), "Analysis menu item should exist")
+        // Tap the vocal analysis option in the menu
+        let analysisMenuItem = app.buttons["ボーカル分析"]
+        XCTAssertTrue(analysisMenuItem.waitForExistence(timeout: 3), "Vocal analysis menu item should exist")
         analysisMenuItem.tap()
 
         // Wait for analysis screen to load
@@ -229,6 +229,14 @@ final class AnalysisUITests: XCTestCase {
 
         // 3. Navigate to Analysis screen via menu
         navigateToAnalysisViaMenu(app)
+
+        // Wait for graph tab picker to appear and switch to Spectrogram tab
+        let graphTabPicker = app.segmentedControls["GraphTabPicker"]
+        XCTAssertTrue(graphTabPicker.waitForExistence(timeout: 10), "Graph tab picker should exist")
+
+        // Switch to Spectrogram tab
+        let spectrogramTabButton = graphTabPicker.buttons.element(boundBy: 1)
+        spectrogramTabButton.tap()
 
         // Wait for spectrogram to appear
         let spectrogramView = app.otherElements["SpectrogramView"]

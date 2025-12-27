@@ -311,6 +311,8 @@
 "analysis.statistics_button" = "Estadísticas";
 "analysis.statistics_short" = "Estadíst.";
 "analysis.no_scale" = "Sin escala grabada";
+"analysis.auto_follow_on" = "Seguir ON";
+"analysis.auto_follow_off" = "Seguir OFF";
 
 // MARK: - Statistics
 "statistics.title" = "Estadísticas";

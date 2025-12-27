@@ -311,6 +311,8 @@
 "analysis.statistics_button" = "Statistiques";
 "analysis.statistics_short" = "Stats";
 "analysis.no_scale" = "Pas de gamme enregistrée";
+"analysis.auto_follow_on" = "Suivi ON";
+"analysis.auto_follow_off" = "Suivi OFF";
 
 // MARK: - Statistics
 "statistics.title" = "Statistiques";

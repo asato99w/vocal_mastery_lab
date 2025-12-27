@@ -311,6 +311,8 @@
 "analysis.statistics_button" = "Statistiken";
 "analysis.statistics_short" = "Statistik";
 "analysis.no_scale" = "Keine Tonleiter aufgenommen";
+"analysis.auto_follow_on" = "Folgen AN";
+"analysis.auto_follow_off" = "Folgen AUS";
 
 // MARK: - Statistics
 "statistics.title" = "Statistiken";

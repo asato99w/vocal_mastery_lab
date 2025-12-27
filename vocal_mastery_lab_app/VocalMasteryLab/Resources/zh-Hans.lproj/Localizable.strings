@@ -311,6 +311,8 @@
 "analysis.statistics_button" = "统计";
 "analysis.statistics_short" = "统计";
 "analysis.no_scale" = "无已录制音阶";
+"analysis.auto_follow_on" = "跟随 开";
+"analysis.auto_follow_off" = "跟随 关";
 
 // MARK: - Statistics
 "statistics.title" = "统计";

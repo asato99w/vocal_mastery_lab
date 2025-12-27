@@ -23,9 +23,15 @@ public class AnalysisViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let recording: Recording
+    private let vocalURL: URL?  // URL of extracted vocal audio (if available)
     private let audioPlayer: AudioPlayerProtocol
     private let analyzeRecordingUseCase: AnalyzeRecordingUseCase
     private let logger = Logger(subsystem: "com.kazuasato.VocalMasteryLab", category: "AnalysisViewModel")
+
+    /// URL to use for analysis and playback
+    private var audioURL: URL {
+        vocalURL ?? recording.fileURL
+    }
 
     // MARK: - Private Properties
 
@@ -80,10 +86,12 @@ public class AnalysisViewModel: ObservableObject {
 
     public init(
         recording: Recording,
+        vocalURL: URL? = nil,
         audioPlayer: AudioPlayerProtocol,
         analyzeRecordingUseCase: AnalyzeRecordingUseCase
     ) {
         self.recording = recording
+        self.vocalURL = vocalURL
         self.audioPlayer = audioPlayer
         self.analyzeRecordingUseCase = analyzeRecordingUseCase
     }
@@ -93,18 +101,23 @@ public class AnalysisViewModel: ObservableObject {
     /// Start analysis when view appears
     public func startAnalysis() async {
         logger.info("Starting analysis for recording: \(self.recording.id.value.uuidString)")
+        logger.info("  vocalURL: \(self.vocalURL?.lastPathComponent ?? "nil")")
+        logger.info("  audioURL (resolved): \(self.audioURL.lastPathComponent)")
 
         state = .loading(progress: 0.0)
 
         do {
             // Execute analysis use case with progress reporting
-            let result = try await analyzeRecordingUseCase.execute(recording: recording) { [weak self] progress in
+            // Pass audioURL to analyze extracted vocal if available
+            let result = try await analyzeRecordingUseCase.execute(recording: recording, audioURL: vocalURL) { [weak self] progress in
                 guard let self = self else { return }
                 self.state = .loading(progress: progress)
             }
 
             state = .ready(result: result)
             logger.info("Analysis completed successfully")
+            logger.info("  pitchData.timeStamps.count: \(result.pitchData.timeStamps.count)")
+            logger.info("  spectrogramData.timeStamps.count: \(result.spectrogramData.timeStamps.count)")
 
         } catch {
             logger.error("Analysis failed: \(error.localizedDescription)")
@@ -184,7 +197,8 @@ public class AnalysisViewModel: ObservableObject {
                 guard let self = self else { return }
                 do {
                     // Pitch data is pre-analyzed, no real-time detection needed
-                    try await self.audioPlayer.play(url: self.recording.fileURL, withPitchDetection: false)
+                    // Use audioURL (extracted vocal if available, otherwise original recording)
+                    try await self.audioPlayer.play(url: self.audioURL, withPitchDetection: false)
 
                     // Playback finished - check state to determine next action
                     await MainActor.run {

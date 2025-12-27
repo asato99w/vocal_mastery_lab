@@ -14,6 +14,7 @@ import VocalisDomain
 struct SpectrogramView: View {
     let currentTime: Double
     let spectrogramData: SpectrogramData?
+    var isPlaying: Bool = false
     var isExpanded: Bool = false
     var onExpand: (() -> Void)? = nil
     var onCollapse: (() -> Void)? = nil
@@ -27,13 +28,12 @@ struct SpectrogramView: View {
     }
     @State private var scrollManager = SpectrogramScrollManager()
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("analysis.spectrogram_title".localized)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .accessibilityIdentifier("SpectrogramTitle")
+    // MARK: - Drag State
+    @State private var dragStartTime: Double = 0.0
+    @State private var isDraggingVertically: Bool? = nil
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
             GeometryReader { geometry in
                 let viewportWidth = geometry.size.width
                 let viewportHeight = geometry.size.height
@@ -65,20 +65,34 @@ struct SpectrogramView: View {
                         message: "🔍 VIEWPORT DEBUG: isExpanded=\(isExpanded), viewportW=\(viewportWidth), viewportH=\(viewportHeight), canvasW=\(canvasWidth), canvasH=\(canvasHeight), pixelsPerSecond=\(pixelsPerSecond), cellWidth=\(cellWidth), scrollableRange=\(scrollableRange)")
                 }()
 
+                // Calculate visible time range for viewport culling
+                let visibleTimeRange: ClosedRange<Double> = {
+                    let visibleStartX = -scrollManager.canvasOffsetX
+                    let startTime = max(0, Double(visibleStartX - canvasLeftPadding) / Double(pixelsPerSecond))
+                    let visibleEndX = visibleStartX + viewportWidth
+                    let endTime = Double(visibleEndX - canvasLeftPadding) / Double(pixelsPerSecond)
+                    // Add margin for smooth scrolling
+                    let margin = 2.0
+                    let marginedStart = max(0, startTime - margin)
+                    let marginedEnd = endTime + margin
+                    return marginedStart...marginedEnd
+                }()
+
                 // Canvas: Contains the entire frequency range (0Hz ~ maxFreq)
                 Canvas { context, size in
                     if let data = spectrogramData, !data.timeStamps.isEmpty {
                         // Draw everything in canvas coordinates
                         // size here is the canvas size, not viewport size
 
-                        // 1. Draw spectrogram (background) - SCROLLABLE
+                        // 1. Draw spectrogram (background) - SCROLLABLE with viewport culling
                         renderer.drawSpectrogram(
                             context: context,
                             canvasWidth: size.width,
                             canvasHeight: canvasHeight,
                             maxFreq: maxFreq,
                             data: data,
-                            leftPadding: canvasLeftPadding
+                            leftPadding: canvasLeftPadding,
+                            visibleTimeRange: visibleTimeRange
                         )
 
                         // 2. Draw Y-axis labels - Y-SCROLLABLE, X-FIXED
@@ -173,33 +187,51 @@ struct SpectrogramView: View {
                     }
                 }
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 1)
                         .onChanged { value in
-                            let translation = value.translation
+                            if isPlaying {
+                                // During playback: direction lock (vertical only)
+                                if isDraggingVertically == nil {
+                                    let dx = abs(value.translation.width)
+                                    let dy = abs(value.translation.height)
+                                    if dx > 5 || dy > 5 {
+                                        isDraggingVertically = dy > dx
+                                    }
+                                }
+                                if isDraggingVertically == true {
+                                    scrollManager.handleVerticalDrag(
+                                        translation: value.translation.height,
+                                        viewportHeight: viewportHeight,
+                                        canvasHeight: canvasHeight
+                                    )
+                                }
+                            } else {
+                                // When paused: diagonal swipe (both vertical and horizontal simultaneously)
+                                // Store start time on first drag
+                                if isDraggingVertically == nil {
+                                    dragStartTime = currentTime
+                                    isDraggingVertically = true // Mark as started
+                                }
 
-                            // Detect drag direction
-                            let angle = atan2(abs(translation.height), abs(translation.width))
-
-                            if angle > .pi / 4 {
-                                // Vertical-dominant drag: frequency axis scrolling
+                                // Vertical: frequency axis scrolling
                                 scrollManager.handleVerticalDrag(
-                                    translation: translation.height,
+                                    translation: value.translation.height,
                                     viewportHeight: viewportHeight,
                                     canvasHeight: canvasHeight
                                 )
-                            } else if let onSeek = onSeek {
-                                // Horizontal-dominant drag: time axis seeking
-                                // Calculate time change from horizontal translation (reduced sensitivity)
-                                let seekSensitivity = 3.0  // Lower sensitivity: 3x more drag needed
-                                let timeChange = -Double(translation.width) / (Double(pixelsPerSecond) * seekSensitivity)
-                                let newTime = max(0, currentTime + timeChange)
 
-                                // Seek to new time
-                                onSeek(newTime)
+                                // Horizontal: time axis seeking
+                                if let onSeek = onSeek {
+                                    let timeChange = -Double(value.translation.width) / Double(pixelsPerSecond)
+                                    let dataDuration = spectrogramData?.timeStamps.last ?? 10.0
+                                    let newTime = max(0, min(dataDuration, dragStartTime + timeChange))
+                                    onSeek(newTime)
+                                }
                             }
                         }
                         .onEnded { _ in
                             scrollManager.endDrag()
+                            isDraggingVertically = nil
                         }
                 )
                 .onChange(of: currentTime) { _, newTime in
@@ -217,6 +249,7 @@ struct SpectrogramView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SpectrogramView")
+        .accessibilityValue(String(format: "%.3f", currentTime))
         .onTapGesture {
             onPlayPause?()
         }
@@ -229,7 +262,9 @@ struct SpectrogramView: View {
 struct PitchAnalysisView: View {
     let currentTime: Double
     let pitchData: PitchAnalysisData?
+    var isPlaying: Bool = false
     var isExpanded: Bool = false
+    @Binding var autoPitchFollow: Bool  // Auto-follow pitch during playback (toggled via UI)
     var onExpand: (() -> Void)? = nil
     var onCollapse: (() -> Void)? = nil
     var onPlayPause: (() -> Void)? = nil
@@ -241,21 +276,22 @@ struct PitchAnalysisView: View {
     // Drag state for horizontal seek
     @State private var lastDragTranslation: CGSize = .zero
 
+    // Drag direction state (for playback mode)
+    @State private var isDraggingVertically: Bool? = nil
+
+    // Auto-follow state
+    @State private var isUserDragging: Bool = false
+    @State private var lastFollowedFrequency: Double? = nil  // Track last followed pitch to avoid redundant updates
+
     // Coordinate system and renderer
     private let coordinateSystem = PitchGraphCoordinateSystem()
     private let renderer = PitchGraphRenderer()
 
     // Drag gesture state
     @State private var dragStartLocation: CGPoint = .zero
-    @State private var isDraggingVertically: Bool? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("analysis.pitch_graph_title".localized)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(ColorPalette.text)
-                .accessibilityIdentifier("PitchGraphTitle")
+        VStack(alignment: .leading, spacing: 0) {
 
             GeometryReader { geometry in
                 let viewportWidth = geometry.size.width
@@ -279,19 +315,40 @@ struct PitchAnalysisView: View {
                     } else {
                         renderer.drawPlaceholder(context: mutableContext, size: size)
                     }
-                    drawLegend(context: mutableContext, size: size)
                 }
                 .gesture(
                     DragGesture()
                         .onChanged { value in
+                            isUserDragging = true
                             handleDrag(value: value, viewportHeight: viewportHeight, canvasHeight: canvasHeight)
                         }
                         .onEnded { _ in
                             scrollManager.endDrag()
                             isDraggingVertically = nil
                             lastDragTranslation = .zero
+                            isUserDragging = false
                         }
                 )
+                .overlay(alignment: .topLeading) {
+                    // Auto-follow toggle button (inside graph, top-left)
+                    Button {
+                        autoPitchFollow.toggle()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "scope")
+                                .font(.system(size: 12))
+                            Text(autoPitchFollow ? "analysis.auto_follow_on".localized : "analysis.auto_follow_off".localized)
+                                .font(.caption2)
+                        }
+                        .foregroundColor(autoPitchFollow ? ColorPalette.primary : .white.opacity(0.7))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(4)
+                    }
+                    .padding(8)
+                    .accessibilityIdentifier("AutoFollowToggle")
+                }
                 .overlay(alignment: .topTrailing) {
                     if !isExpanded, let onExpand = onExpand {
                         Button(action: onExpand) {
@@ -356,6 +413,22 @@ struct PitchAnalysisView: View {
                         pixelsPerSecond: PitchGraphConstants.pixelsPerSecond,
                         canvasLeftPadding: leftPadding
                     )
+
+                    // Auto-follow detected pitch during playback (when enabled and not user-dragging)
+                    if isPlaying && autoPitchFollow && !isUserDragging {
+                        if let targetFreq = currentPitchFrequency(at: newTime) {
+                            // Only update when pitch changes significantly (avoid constant small movements)
+                            if lastFollowedFrequency == nil || abs(targetFreq - lastFollowedFrequency!) > 10.0 {
+                                lastFollowedFrequency = targetFreq
+                            }
+                            // Always apply gentle easing towards target
+                            updateVerticalScrollForPitch(
+                                targetFrequency: targetFreq,
+                                viewportHeight: viewportHeight,
+                                canvasHeight: canvasHeight
+                            )
+                        }
+                    }
                 }
             }
             .background(ColorPalette.secondary)
@@ -428,32 +501,123 @@ struct PitchAnalysisView: View {
     }
 
     private func handleDrag(value: DragGesture.Value, viewportHeight: CGFloat, canvasHeight: CGFloat) {
-        // Determine drag direction on first movement
-        if isDraggingVertically == nil {
-            let dx = abs(value.translation.width)
-            let dy = abs(value.translation.height)
-            if dx > 5 || dy > 5 {
-                isDraggingVertically = dy > dx
+        if isPlaying {
+            // During playback: vertical only (direction locking)
+            if isDraggingVertically == nil {
+                let dx = abs(value.translation.width)
+                let dy = abs(value.translation.height)
+                if dx > 5 || dy > 5 {
+                    isDraggingVertically = dy > dx
+                }
+            }
+
+            if isDraggingVertically == true {
+                scrollManager.handleVerticalDrag(
+                    translation: value.translation.height,
+                    viewportHeight: viewportHeight,
+                    canvasHeight: canvasHeight
+                )
+            }
+            // Ignore horizontal drag during playback
+        } else {
+            // When paused: allow diagonal swipe (both vertical + horizontal)
+            // Determine drag direction on first movement
+            if isDraggingVertically == nil {
+                let dx = abs(value.translation.width)
+                let dy = abs(value.translation.height)
+                if dx > 5 || dy > 5 {
+                    isDraggingVertically = dy > dx
+                }
+            }
+
+            // Handle vertical drag for frequency scrolling
+            if isDraggingVertically == true {
+                scrollManager.handleVerticalDrag(
+                    translation: value.translation.height,
+                    viewportHeight: viewportHeight,
+                    canvasHeight: canvasHeight
+                )
+            } else if isDraggingVertically == false {
+                // Handle horizontal drag for seek
+                let dataDuration = pitchData?.timeStamps.last ?? 10.0
+                let deltaX = value.translation.width - lastDragTranslation.width
+                let deltaTime = -Double(deltaX) / Double(PitchGraphConstants.pixelsPerSecond)
+                let newTime = max(0, min(dataDuration, currentTime + deltaTime))
+
+                lastDragTranslation = value.translation
+                onSeek?(newTime)
+            }
+        }
+    }
+
+    // MARK: - Pitch Lookup
+
+    /// Find the detected pitch frequency at the given time
+    /// Uses binary search for efficient lookup
+    private func currentPitchFrequency(at time: Double) -> Double? {
+        guard let data = pitchData, !data.timeStamps.isEmpty else { return nil }
+
+        // Find the closest timestamp using binary search
+        var low = 0
+        var high = data.timeStamps.count - 1
+
+        while low < high {
+            let mid = (low + high) / 2
+            if data.timeStamps[mid] < time {
+                low = mid + 1
+            } else {
+                high = mid
             }
         }
 
-        // Handle vertical drag for frequency scrolling
-        if isDraggingVertically == true {
-            scrollManager.handleVerticalDrag(
-                translation: value.translation.height,
-                viewportHeight: viewportHeight,
-                canvasHeight: canvasHeight
-            )
-        } else if isDraggingVertically == false {
-            // Handle horizontal drag for seek
-            let dataDuration = pitchData?.timeStamps.last ?? 10.0
-            let deltaX = value.translation.width - lastDragTranslation.width
-            let deltaTime = -Double(deltaX) / Double(PitchGraphConstants.pixelsPerSecond)
-            let newTime = max(0, min(dataDuration, currentTime + deltaTime))
+        // Get the frequency at the closest timestamp
+        let frequency = data.frequencies[low]
 
-            lastDragTranslation = value.translation
-            onSeek?(newTime)
+        // Skip very low frequencies (likely silence or noise)
+        if frequency < 50.0 {
+            return nil
         }
+
+        return Double(frequency)
+    }
+
+    // MARK: - Auto-Follow Scrolling
+
+    /// Update vertical scroll to keep the target pitch frequency in view
+    private func updateVerticalScrollForPitch(
+        targetFrequency: Double,
+        viewportHeight: CGFloat,
+        canvasHeight: CGFloat
+    ) {
+        // Convert target frequency to canvas Y position (in canvas coordinates)
+        let targetCanvasY = coordinateSystem.frequencyToCanvasY(frequency: targetFrequency, canvasHeight: canvasHeight)
+
+        // Convert to viewport Y position
+        let targetViewportY = targetCanvasY + scrollManager.paperTop
+
+        // Define safe zone margins (20% from top and bottom)
+        let topMargin = viewportHeight * 0.2
+        let bottomMargin = viewportHeight * 0.8
+
+        // Check if target is within safe zone - no scrolling needed
+        if targetViewportY >= topMargin && targetViewportY <= bottomMargin {
+            return
+        }
+
+        // Target is outside safe zone - scroll to bring it back to center
+        let idealPaperTop = viewportHeight / 2 - targetCanvasY
+
+        // Clamp to valid range
+        let maxPaperTop: CGFloat = 0
+        let minPaperTop = viewportHeight - canvasHeight
+        let targetPaperTop = max(minPaperTop, min(maxPaperTop, idealPaperTop))
+
+        // Fast easing when scrolling is actually needed (0.3 = responsive)
+        let easingFactor: CGFloat = 0.3
+        let newPaperTop = scrollManager.paperTop + (targetPaperTop - scrollManager.paperTop) * easingFactor
+
+        scrollManager.paperTop = newPaperTop
+        scrollManager.lastPaperTop = newPaperTop
     }
 
     // MARK: - Canvas Drawing
@@ -546,16 +710,5 @@ struct PitchAnalysisView: View {
         }
 
         return result
-    }
-
-    private func drawLegend(context: GraphicsContext, size: CGSize) {
-        let legendY: CGFloat = 20
-
-        // Detected pitch legend only (target scale legend removed)
-        var path = Path()
-        path.move(to: CGPoint(x: 10, y: legendY))
-        path.addLine(to: CGPoint(x: 40, y: legendY))
-        context.stroke(path, with: .color(.blue), lineWidth: 1.5)
-        context.draw(Text("analysis.legend_detected".localized).font(.caption2), at: CGPoint(x: 45, y: legendY), anchor: .leading)
     }
 }

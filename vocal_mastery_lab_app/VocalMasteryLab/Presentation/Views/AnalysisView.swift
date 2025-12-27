@@ -15,6 +15,12 @@ public struct AnalysisView: View {
     // MARK: - Statistics Sheet State
     @State private var showStatisticsSheet: Bool = false
 
+    // MARK: - Tab Selection State
+    @State private var selectedGraphTab: GraphTabType = .pitchAnalysis
+
+    // MARK: - Auto-Follow State
+    @State private var autoPitchFollow: Bool = true
+
     enum ExpandedGraphType: Identifiable {
         case spectrogram
         case pitchAnalysis
@@ -22,14 +28,39 @@ public struct AnalysisView: View {
         var id: Self { self }
     }
 
+    enum GraphTabType: String, CaseIterable {
+        case pitchAnalysis
+        case spectrogram
+
+        var localizedTitle: String {
+            switch self {
+            case .pitchAnalysis:
+                return "analysis.pitch_graph_title".localized
+            case .spectrogram:
+                return "analysis.spectrogram_title".localized
+            }
+        }
+
+        var iconName: String {
+            switch self {
+            case .pitchAnalysis:
+                return "waveform.path"
+            case .spectrogram:
+                return "waveform"
+            }
+        }
+    }
+
     public init(
         recording: Recording,
+        vocalURL: URL? = nil,
         audioPlayer: AudioPlayerProtocol,
         analyzeRecordingUseCase: AnalyzeRecordingUseCase
     ) {
         self.recording = recording
         _viewModel = StateObject(wrappedValue: AnalysisViewModel(
             recording: recording,
+            vocalURL: vocalURL,
             audioPlayer: audioPlayer,
             analyzeRecordingUseCase: analyzeRecordingUseCase
         ))
@@ -159,43 +190,54 @@ public struct AnalysisView: View {
 
             Divider()
 
-            // Right side: Visualization area
-            VStack(spacing: 12) {
-                // Spectrogram (top half)
-                SpectrogramView(
-                    currentTime: viewModel.currentTime,
-                    spectrogramData: viewModel.analysisResult?.spectrogramData,
-                    onExpand: {
-                        expandedGraph = .spectrogram
-                    },
-                    onPlayPause: { viewModel.togglePlayback() },
-                    onSeek: { time in viewModel.seek(to: time) }
-                )
-                .frame(maxHeight: .infinity)
+            // Right side: Visualization area with tab switching
+            VStack(spacing: 0) {
+                // Tab picker
+                graphTabPicker
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
 
-                Divider()
+                // Selected graph (only one rendered at a time for performance)
+                Group {
+                    switch selectedGraphTab {
+                    case .pitchAnalysis:
+                        PitchAnalysisView(
+                            currentTime: viewModel.currentTime,
+                            pitchData: viewModel.analysisResult?.pitchData,
+                            isPlaying: viewModel.isPlaying,
+                            autoPitchFollow: $autoPitchFollow,
+                            onExpand: {
+                                expandedGraph = .pitchAnalysis
+                            },
+                            onPlayPause: { viewModel.togglePlayback() },
+                            onSeek: { time in viewModel.seek(to: time) }
+                        )
 
-                // Pitch analysis graph (bottom half)
-                PitchAnalysisView(
-                    currentTime: viewModel.currentTime,
-                    pitchData: viewModel.analysisResult?.pitchData,
-                    onExpand: {
-                        expandedGraph = .pitchAnalysis
-                    },
-                    onPlayPause: { viewModel.togglePlayback() },
-                    onSeek: { time in viewModel.seek(to: time) }
-                )
-                .frame(maxHeight: .infinity)
+                    case .spectrogram:
+                        SpectrogramView(
+                            currentTime: viewModel.currentTime,
+                            spectrogramData: viewModel.analysisResult?.spectrogramData,
+                            isPlaying: viewModel.isPlaying,
+                            onExpand: {
+                                expandedGraph = .spectrogram
+                            },
+                            onPlayPause: { viewModel.togglePlayback() },
+                            onSeek: { time in viewModel.seek(to: time) }
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(12)
             }
-            .padding(12)
         }
     }
 
     // MARK: - Portrait Layout
 
     private var portraitLayout: some View {
-        ScrollView {
-            VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            // Fixed header area (not scrollable)
+            VStack(spacing: 12) {
                 RecordingInfoCompact(recording: recording, showStatisticsSheet: $showStatisticsSheet)
 
                 PlaybackControl(
@@ -206,30 +248,57 @@ public struct AnalysisView: View {
                     onSeek: { time in viewModel.seek(to: time) }
                 )
 
-                SpectrogramView(
-                    currentTime: viewModel.currentTime,
-                    spectrogramData: viewModel.analysisResult?.spectrogramData,
-                    onExpand: {
-                        expandedGraph = .spectrogram
-                    },
-                    onPlayPause: { viewModel.togglePlayback() },
-                    onSeek: { time in viewModel.seek(to: time) }
-                )
-                .frame(height: 200)
-
-                PitchAnalysisView(
-                    currentTime: viewModel.currentTime,
-                    pitchData: viewModel.analysisResult?.pitchData,
-                    onExpand: {
-                        expandedGraph = .pitchAnalysis
-                    },
-                    onPlayPause: { viewModel.togglePlayback() },
-                    onSeek: { time in viewModel.seek(to: time) }
-                )
-                .frame(height: 200)
+                // Tab picker
+                graphTabPicker
             }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            // Graph area (maximized)
+            Group {
+                switch selectedGraphTab {
+                case .pitchAnalysis:
+                    PitchAnalysisView(
+                        currentTime: viewModel.currentTime,
+                        pitchData: viewModel.analysisResult?.pitchData,
+                        isPlaying: viewModel.isPlaying,
+                        autoPitchFollow: $autoPitchFollow,
+                        onExpand: {
+                            expandedGraph = .pitchAnalysis
+                        },
+                        onPlayPause: { viewModel.togglePlayback() },
+                        onSeek: { time in viewModel.seek(to: time) }
+                    )
+
+                case .spectrogram:
+                    SpectrogramView(
+                        currentTime: viewModel.currentTime,
+                        spectrogramData: viewModel.analysisResult?.spectrogramData,
+                        isPlaying: viewModel.isPlaying,
+                        onExpand: {
+                            expandedGraph = .spectrogram
+                        },
+                        onPlayPause: { viewModel.togglePlayback() },
+                        onSeek: { time in viewModel.seek(to: time) }
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
         }
+    }
+
+    // MARK: - Graph Tab Picker
+
+    private var graphTabPicker: some View {
+        Picker("Graph Type", selection: $selectedGraphTab) {
+            ForEach(GraphTabType.allCases, id: \.self) { tab in
+                Label(tab.localizedTitle, systemImage: tab.iconName)
+                    .tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("GraphTabPicker")
     }
 
     // MARK: - Expanded Graph Full Screen
@@ -249,6 +318,7 @@ public struct AnalysisView: View {
                     SpectrogramView(
                         currentTime: viewModel.currentTime,
                         spectrogramData: viewModel.analysisResult?.spectrogramData,
+                        isPlaying: viewModel.isPlaying,
                         isExpanded: true,
                         onCollapse: {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -264,7 +334,9 @@ public struct AnalysisView: View {
                     PitchAnalysisView(
                         currentTime: viewModel.currentTime,
                         pitchData: viewModel.analysisResult?.pitchData,
+                        isPlaying: viewModel.isPlaying,
                         isExpanded: true,
+                        autoPitchFollow: $autoPitchFollow,
                         onCollapse: {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 expandedGraph = nil

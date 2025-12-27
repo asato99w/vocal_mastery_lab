@@ -89,13 +89,15 @@ public class SpectrogramRenderer {
     ///   - maxFreq: Maximum frequency
     ///   - data: Spectrogram data to visualize
     ///   - leftPadding: Left padding for canvas
+    ///   - visibleTimeRange: Optional time range for viewport culling (only draws data within this range)
     public func drawSpectrogram(
         context: GraphicsContext,
         canvasWidth: CGFloat,
         canvasHeight: CGFloat,
         maxFreq: Double,
         data: SpectrogramData,
-        leftPadding: CGFloat
+        leftPadding: CGFloat,
+        visibleTimeRange: ClosedRange<Double>? = nil
     ) {
         guard !data.timeStamps.isEmpty else { return }
 
@@ -144,6 +146,11 @@ public class SpectrogramRenderer {
 
             // Draw cells for this frequency bin across time
             for (timeIndex, timestamp) in data.timeStamps.enumerated() {
+                // Viewport culling: skip data outside visible time range
+                if let range = visibleTimeRange {
+                    guard range.contains(timestamp) else { continue }
+                }
+
                 // X coordinate in Canvas coordinate system
                 // x = timestamp × pixelsPerSecond + leftPadding (Canvas absolute coordinate)
                 // Data starts at leftPadding to leave space for frequency labels

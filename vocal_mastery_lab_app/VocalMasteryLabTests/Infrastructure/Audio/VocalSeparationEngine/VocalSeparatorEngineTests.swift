@@ -334,7 +334,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
     /// - xcodebuildの再ビルドに時間がかかりすぎる（数分）
     /// - POCは同じ実装で15秒音声を約9秒で処理完了
     /// - TestResources/Audio/hollow_crown_15s.wav と
-    ///   TestResources/Models/UVR-MDX-NET-Inst_Main.mlpackage は配置済み
+    ///   TestResources/Models/UVR-MDX-NET-Voc_FT.mlpackage は配置済み
     /// - Xcodeの増分ビルドまたはXcode GUIからのテスト実行で検証が必要
     ///
     /// **検証方法**:
@@ -428,7 +428,7 @@ final class VocalSeparatorEngineTests: XCTestCase {
         }
 
         // 出力ディレクトリ (poc/uvr_coreml/output/app/Ani_1_01)
-        let pocOutputDir = URL(fileURLWithPath: "/Users/asatokazu/Documents/dev/mine/music/vocal_mastery_lab/poc/uvr_coreml/output/app/Ani_1_01")
+        let pocOutputDir = URL(fileURLWithPath: "/Users/kazuasato/Documents/dev/music/vocal_mastery_lab/poc/uvr_coreml/output/app/Ani_1_01")
         try FileManager.default.createDirectory(at: pocOutputDir, withIntermediateDirectories: true)
 
         // 抽出実行

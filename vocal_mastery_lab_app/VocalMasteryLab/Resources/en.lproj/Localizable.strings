@@ -316,6 +316,8 @@
 "analysis.statistics_button" = "Statistics";
 "analysis.statistics_short" = "Stats";
 "analysis.no_scale" = "No scale recorded";
+"analysis.auto_follow_on" = "Follow ON";
+"analysis.auto_follow_off" = "Follow OFF";
 
 // MARK: - Statistics Sheet
 "statistics.title" = "Statistics";

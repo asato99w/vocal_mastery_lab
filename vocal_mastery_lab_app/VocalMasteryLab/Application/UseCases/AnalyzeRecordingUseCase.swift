@@ -123,12 +123,14 @@ public class AnalyzeRecordingUseCase {
 
     /// Analyze recording and return analysis result
     /// - Parameters:
-    ///   - recording: Recording to analyze
+    ///   - recording: Recording to analyze (used for cache key)
+    ///   - audioURL: Optional URL to analyze (if nil, uses recording.fileURL)
     ///   - progress: Callback for progress updates (0.0 to 1.0), called on MainActor
     /// - Returns: Analysis result with pitch and spectrogram data
     /// - Throws: Error if file reading or analysis fails
-    public func execute(recording: Recording, progress: @escaping @MainActor (Double) -> Void = { _ in }) async throws -> AnalysisResult {
-        logger.info("Starting analysis for recording: \(recording.id.value.uuidString)", category: "useCase")
+    public func execute(recording: Recording, audioURL: URL? = nil, progress: @escaping @MainActor (Double) -> Void = { _ in }) async throws -> AnalysisResult {
+        let fileURL = audioURL ?? recording.fileURL
+        logger.info("Starting analysis for recording: \(recording.id.value.uuidString), file: \(fileURL.lastPathComponent)", category: "useCase")
 
         let algorithm = currentAlgorithm
         let algorithmChanged = recording.analysisAlgorithm != nil && recording.analysisAlgorithm != algorithm
@@ -156,7 +158,7 @@ public class AnalyzeRecordingUseCase {
 
             // Analyze spectrogram only (faster - skips YIN algorithm)
             let spectrogramData = try await audioFileAnalyzer.analyzeSpectrogramOnly(
-                fileURL: recording.fileURL,
+                fileURL: fileURL,
                 progress: progress
             )
 
@@ -175,11 +177,11 @@ public class AnalyzeRecordingUseCase {
         }
 
         // Layer 3: Full analysis required
-        logger.info("Cache miss - full analysis for file: \(recording.fileURL.path) with algorithm: \(algorithm.rawValue)", category: "useCase")
+        logger.info("Cache miss - full analysis for file: \(fileURL.path) with algorithm: \(algorithm.rawValue)", category: "useCase")
 
         // Analyze audio file with progress reporting
         let (pitchData, spectrogramData) = try await audioFileAnalyzer.analyze(
-            fileURL: recording.fileURL,
+            fileURL: fileURL,
             progress: progress
         )
 

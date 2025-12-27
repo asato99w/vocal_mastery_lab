@@ -119,6 +119,44 @@ final class AnalysisViewModelTests: XCTestCase {
         XCTAssertEqual(mockUseCase.lastRecording?.id, testRecording.id)
     }
 
+    /// Test: When vocalURL is provided, it should be passed to the use case for analysis
+    /// This ensures the analysis uses the extracted vocal audio, not the original recording
+    @MainActor
+    func testStartAnalysis_WithVocalURL_PassesVocalURLToUseCase() async {
+        // Given: A vocal URL is provided
+        let vocalURL = URL(fileURLWithPath: "/tmp/extracted_vocal.wav")
+        mockUseCase.resultToReturn = createTestAnalysisResult()
+
+        // Create ViewModel with vocalURL
+        let viewModelWithVocal = AnalysisViewModel(
+            recording: testRecording,
+            vocalURL: vocalURL,
+            audioPlayer: mockAudioPlayer,
+            analyzeRecordingUseCase: mockUseCase
+        )
+
+        // When: Starting analysis
+        await viewModelWithVocal.startAnalysis()
+
+        // Then: Use case should receive the vocalURL as audioURL parameter
+        XCTAssertEqual(mockUseCase.lastAudioURL, vocalURL,
+            "Analysis should use extracted vocal URL, not original recording")
+    }
+
+    /// Test: When vocalURL is nil, audioURL passed to use case should also be nil
+    @MainActor
+    func testStartAnalysis_WithoutVocalURL_PassesNilAudioURL() async {
+        // Given: No vocal URL (default setup)
+        mockUseCase.resultToReturn = createTestAnalysisResult()
+
+        // When: Starting analysis
+        await sut.startAnalysis()
+
+        // Then: audioURL should be nil (use case will use recording.fileURL)
+        XCTAssertNil(mockUseCase.lastAudioURL,
+            "Without vocalURL, audioURL should be nil")
+    }
+
     @MainActor
     func testStartAnalysis_ReportsProgressUpdates() async {
         // Given: Successful analysis
@@ -321,6 +359,7 @@ final class AnalysisViewModelTests: XCTestCase {
 fileprivate class MockAnalyzeRecordingUseCase: AnalyzeRecordingUseCase {
     var executeCallCount = 0
     var lastRecording: Recording?
+    var lastAudioURL: URL?  // Capture the audioURL passed to execute
     var shouldThrowError = false
     var resultToReturn: AnalysisResult?
     var progressCallbacks: [Double] = []
@@ -333,9 +372,10 @@ fileprivate class MockAnalyzeRecordingUseCase: AnalyzeRecordingUseCase {
         super.init(analyzerFactory: dummyFactory, analysisCache: dummyCache, logger: dummyLogger)
     }
 
-    override func execute(recording: Recording, progress: @escaping @MainActor (Double) -> Void) async throws -> AnalysisResult {
+    override func execute(recording: Recording, audioURL: URL? = nil, progress: @escaping @MainActor (Double) -> Void) async throws -> AnalysisResult {
         executeCallCount += 1
         lastRecording = recording
+        lastAudioURL = audioURL  // Capture audioURL
 
         // Simulate progress updates
         await progress(0.0)

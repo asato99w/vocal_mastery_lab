@@ -1,11 +1,26 @@
 import SwiftUI
 import VocalisDomain
 
+/// Navigation data for analysis screen (holds both recording and vocalURL together)
+struct AnalysisNavigation: Identifiable, Hashable {
+    let id = UUID()
+    let recording: Recording
+    let vocalURL: URL?
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: AnalysisNavigation, rhs: AnalysisNavigation) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 /// Recording list screen
 public struct RecordingListView: View {
     @StateObject private var viewModel: RecordingListViewModel
     @StateObject private var localization = LocalizationManager.shared
-    @State private var selectedRecording: Recording?
+    @State private var analysisNavigation: AnalysisNavigation?
     @State private var extractingRecording: Recording?
     @State private var editingRecording: Recording?
     @State private var editingTitle: String = ""
@@ -51,9 +66,10 @@ public struct RecordingListView: View {
         }
         .navigationTitle("list.title".localized)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(item: $selectedRecording) { recording in
+        .navigationDestination(item: $analysisNavigation) { navigation in
             AnalysisView(
-                recording: recording,
+                recording: navigation.recording,
+                vocalURL: navigation.vocalURL,
                 audioPlayer: audioPlayer,
                 analyzeRecordingUseCase: analyzeRecordingUseCase
             )
@@ -165,7 +181,10 @@ public struct RecordingListView: View {
                         }
                     },
                     onAnalyze: {
-                        selectedRecording = recording
+                        // Create navigation with both recording and vocalURL together
+                        // This ensures both values are passed atomically to AnalysisView
+                        let vocalURL = viewModel.getExtractedAudio(for: recording, type: .vocal)?.fileURL
+                        analysisNavigation = AnalysisNavigation(recording: recording, vocalURL: vocalURL)
                     },
                     onExtract: {
                         extractingRecording = recording
@@ -295,11 +314,11 @@ private struct RecordingRow: View {
 
                 Divider()
 
-                // Analysis - disabled if not extracted
+                // Vocal Analysis - disabled if not extracted
                 Button {
                     onAnalyze()
                 } label: {
-                    Label("分析", systemImage: "chart.xyaxis.line")
+                    Label("ボーカル分析", systemImage: "chart.xyaxis.line")
                 }
                 .disabled(!isExtracted)
 
