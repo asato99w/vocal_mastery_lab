@@ -8,9 +8,12 @@ final class MockAudioPlayer: AudioPlayerProtocol {
     var pauseCalled = false
     var resumeCalled = false
     var seekCalled = false
+    var prepareCalled = false
     var seekToTime: TimeInterval = 0.0
     var playURL: URL?
+    var prepareURL: URL?
     var playShouldFail = false
+    var prepareShouldFail = false
     var _isPlaying = false
     var _currentTime: TimeInterval = 0.0
     var _duration: TimeInterval = 10.0
@@ -27,6 +30,15 @@ final class MockAudioPlayer: AudioPlayerProtocol {
 
     var duration: TimeInterval {
         return _duration
+    }
+
+    func prepare(url: URL) throws {
+        prepareCalled = true
+        prepareURL = url
+
+        if prepareShouldFail {
+            throw AudioPlayerError.playbackFailed("Mock prepare error")
+        }
     }
 
     func play(url: URL, withPitchDetection: Bool) async throws {
@@ -72,9 +84,12 @@ final class MockAudioPlayer: AudioPlayerProtocol {
         pauseCalled = false
         resumeCalled = false
         seekCalled = false
+        prepareCalled = false
         seekToTime = 0.0
         playURL = nil
+        prepareURL = nil
         playShouldFail = false
+        prepareShouldFail = false
         _isPlaying = false
         _currentTime = 0.0
         playWithPitchDetection = false

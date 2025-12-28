@@ -79,6 +79,179 @@ final class BackingTrackUITests: XCTestCase {
         }
         return 0
     }
+
+    // MARK: - Backing Track Player Tests
+
+    /// バッキングトラック選択時にプレイヤーが表示されることを確認
+    @MainActor
+    func testBackingTrackPlayer_ShowsWhenTrackSelected() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        // ホームから録音画面へ遷移
+        let homeRecordButton = app.buttons["HomeRecordButton"]
+        XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 5))
+        homeRecordButton.tap()
+
+        // 録音画面がロードされるまで待機
+        let startButton = app.buttons["StartRecordingButton"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // 録音を実行（バッキングトラック用の録音を作成）
+        startButton.tap()
+        let stopButton = app.buttons["StopRecordingButton"]
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1.0)
+        stopButton.tap()
+
+        // 録音完了を待つ
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // バッキングトラックピッカーが存在することを確認
+        // Note: SwiftUI Menuは親VStackの識別子を継承するため、BackingTrackSectionを使用
+        let backingPicker = app.buttons["BackingTrackSection"]
+        XCTAssertTrue(backingPicker.waitForExistence(timeout: 5), "バッキングトラックピッカーが存在すべき")
+
+        // ピッカーをタップして録音を選択
+        backingPicker.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // メニューから最初の録音を選択（「なし」以外）
+        // SwiftUI Menuはbuttons内に表示される
+        let allButtons = app.buttons.allElementsBoundByIndex
+        var selectedTrack = false
+        for button in allButtons {
+            let label = button.label
+            // 「なし」と「BackingTrackSection」以外のボタンを探す
+            if !label.isEmpty && label != "なし" && !label.contains("chevron") && button.identifier != "BackingTrackSection" {
+                // 日付形式（録音のタイトル）らしきものを選択
+                if label.contains("/") || label.contains("録音") || label.count > 5 {
+                    button.tap()
+                    selectedTrack = true
+                    break
+                }
+            }
+        }
+
+        // トラックが選択できなかった場合はスキップ
+        guard selectedTrack else {
+            throw XCTSkip("選択可能なバッキングトラックが見つかりませんでした")
+        }
+
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // デバッグ: トラック選択後のスクリーンショット
+        add(XCTAttachment(screenshot: app.screenshot()).apply { $0.name = "after_track_select"; $0.lifetime = .keepAlways })
+
+        // プレイヤービューが表示されることを確認
+        let playerView = app.otherElements["BackingTrackPlayerView"]
+        XCTAssertTrue(playerView.waitForExistence(timeout: 5), "バッキングトラックプレイヤーが表示されるべき")
+
+        // 再生ボタンが存在することを確認
+        // Note: SwiftUI accessibilityIdentifierが親ビューから継承されるため、ラベルで検索
+        let playPauseButton = app.buttons.matching(NSPredicate(format: "label == '再生' OR label == 'play'")).firstMatch
+        XCTAssertTrue(playPauseButton.waitForExistence(timeout: 3), "再生/一時停止ボタンが存在すべき")
+
+        // 停止ボタンが存在することを確認
+        let stopTrackButton = app.buttons.matching(NSPredicate(format: "label == '停止' OR label == 'stop'")).firstMatch
+        XCTAssertTrue(stopTrackButton.waitForExistence(timeout: 3), "停止ボタンが存在すべき")
+    }
+
+    /// バッキングトラックプレイヤーで再生/一時停止ができることを確認
+    @MainActor
+    func testBackingTrackPlayer_PlayPauseToggle() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        // ホームから録音画面へ遷移
+        let homeRecordButton = app.buttons["HomeRecordButton"]
+        XCTAssertTrue(homeRecordButton.waitForExistence(timeout: 5))
+        homeRecordButton.tap()
+
+        // 録音画面がロードされるまで待機
+        let startButton = app.buttons["StartRecordingButton"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // 録音を実行（再生テストのため、より長い録音を作成）
+        startButton.tap()
+        let stopButton = app.buttons["StopRecordingButton"]
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 3.0)  // 3秒間録音（再生テストに十分な長さ）
+        stopButton.tap()
+
+        // 録音完了を待つ
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // バッキングトラックを選択
+        // Note: SwiftUI Menuは親VStackの識別子を継承するため、BackingTrackSectionを使用
+        let backingPicker = app.buttons["BackingTrackSection"]
+        XCTAssertTrue(backingPicker.waitForExistence(timeout: 5))
+        backingPicker.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // メニューから録音を選択
+        let allButtons = app.buttons.allElementsBoundByIndex
+        var selectedTrack = false
+        for button in allButtons {
+            let label = button.label
+            if !label.isEmpty && label != "なし" && !label.contains("chevron") && button.identifier != "BackingTrackSection" {
+                if label.contains("/") || label.contains("録音") || label.count > 5 {
+                    button.tap()
+                    selectedTrack = true
+                    break
+                }
+            }
+        }
+
+        guard selectedTrack else {
+            throw XCTSkip("選択可能なバッキングトラックが見つかりませんでした")
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // プレイヤーが表示されていることを確認
+        let playerView = app.otherElements["BackingTrackPlayerView"]
+        XCTAssertTrue(playerView.waitForExistence(timeout: 5))
+
+        // 再生ボタンをタップ
+        // Note: SwiftUI accessibilityIdentifierが親ビューから継承されるため、ラベルで検索
+        let playButton = app.buttons.matching(NSPredicate(format: "label == '再生' OR label == 'play'")).firstMatch
+        XCTAssertTrue(playButton.waitForExistence(timeout: 3), "再生ボタンが存在すべき")
+
+        playButton.tap()
+
+        // UI更新を待つ
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // デバッグ: スクリーンショット
+        add(XCTAttachment(screenshot: app.screenshot()).apply { $0.name = "after_play_tap"; $0.lifetime = .keepAlways })
+
+        // 再生中インジケータまたは一時停止ボタンが表示されることを確認
+        // Note: 「再生中」テキストを含む要素を検索
+        let playingIndicator = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '再生中'")).firstMatch
+        let pauseButton = app.buttons.matching(NSPredicate(format: "label == '一時停止' OR label == 'pause'")).firstMatch
+
+        // どちらかが存在すれば再生が開始された
+        let playbackStarted = playingIndicator.waitForExistence(timeout: 3) || pauseButton.exists
+        XCTAssertTrue(playbackStarted, "再生が開始されるべき（インジケータまたは一時停止ボタンが表示）")
+
+        // 一時停止ボタンをタップ
+        if pauseButton.exists {
+            pauseButton.tap()
+        } else if playButton.exists {
+            // 再生ボタンがまだ存在する場合（状態が変わっていない可能性）
+            playButton.tap()
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+
+        // 再生中インジケータが非表示になることを確認
+        XCTAssertFalse(playingIndicator.exists, "一時停止後、再生中インジケータが非表示になるべき")
+    }
 }
 
 private extension XCTAttachment {

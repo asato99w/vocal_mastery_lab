@@ -84,9 +84,13 @@ public class RecordingViewModel: ObservableObject {
     @Published public private(set) var availableBackingTracks: [BackingTrackInfo] = []
     @Published public var selectedBackingTrack: BackingTrackInfo?
     @Published public var selectedBackingSource: BackingTrackSource?
+    @Published public private(set) var isBackingPlaying: Bool = false
+    @Published public private(set) var backingCurrentTime: TimeInterval = 0
+    @Published public private(set) var backingDuration: TimeInterval = 0
     private var backingTrackPlayer: AudioPlayerProtocol?
     private var recordingRepository: RecordingRepositoryProtocol?
     private var extractedAudioRepository: ExtractedAudioRepositoryProtocol?
+    private var backingHasStarted: Bool = false
 
     // MARK: - Initialization
 
@@ -241,11 +245,6 @@ public class RecordingViewModel: ObservableObject {
         }
         Logger.viewModel.info("Recording started - starting pitch detection")
 
-        // Start backing track playback if selected
-        if selectedBackingTrack != nil && selectedBackingSource != nil {
-            await startBackingTrackPlayback()
-        }
-
         do {
             try await pitchDetector.startRealtimeDetection()
             Logger.viewModel.info("Realtime pitch detection started")
@@ -266,9 +265,6 @@ public class RecordingViewModel: ObservableObject {
     public func stopRecording() async {
         // Stop pitch detection
         pitchDetector.stopRealtimeDetection()
-
-        // Stop backing track playback if playing
-        await stopBackingTrackPlayback()
 
         // Stop recording
         await recordingStateVM.stopRecording()
@@ -412,8 +408,74 @@ public class RecordingViewModel: ObservableObject {
         selectedBackingSource = nil
     }
 
+    /// Select a backing track and reset playback state
+    public func selectBackingTrack(_ track: BackingTrackInfo?) async {
+        // Stop current playback if playing
+        if isBackingPlaying {
+            await stopBacking()
+        }
+
+        // Reset playback state for new track
+        backingHasStarted = false
+        backingCurrentTime = 0
+        backingDuration = 0
+
+        // Set new track
+        selectedBackingTrack = track
+        selectedBackingSource = track?.availableSources.first
+
+        // Pre-load audio file for instant playback
+        if let track = track,
+           let source = track.availableSources.first,
+           let url = track.fileURL(for: source),
+           let player = backingTrackPlayer {
+            do {
+                try player.prepare(url: url)
+            } catch {
+                Logger.viewModel.error("Failed to prepare backing track: \(error.localizedDescription)")
+            }
+        }
+
+        Logger.viewModel.info("Selected backing track: \(track?.displayTitle ?? "none")")
+    }
+
+    /// Select a backing source and reset playback state
+    public func selectBackingSource(_ source: BackingTrackSource?) async {
+        // Stop current playback if playing
+        if isBackingPlaying {
+            await stopBacking()
+        }
+
+        // Reset playback state for new source
+        backingHasStarted = false
+        backingCurrentTime = 0
+
+        // Set new source
+        selectedBackingSource = source
+
+        // Pre-load audio file for instant playback
+        if let track = selectedBackingTrack,
+           let source = source,
+           let url = track.fileURL(for: source),
+           let player = backingTrackPlayer {
+            do {
+                try player.prepare(url: url)
+            } catch {
+                Logger.viewModel.error("Failed to prepare backing track: \(error.localizedDescription)")
+            }
+        }
+
+        Logger.viewModel.info("Selected backing source: \(source?.rawValue ?? "none")")
+    }
+
     /// Start playing the selected backing track
     public func startBackingTrackPlayback() async {
+        // Guard against multiple simultaneous playback attempts
+        guard !isBackingPlaying else {
+            Logger.viewModel.info("Backing track already playing, skipping startBackingTrackPlayback")
+            return
+        }
+
         guard let track = selectedBackingTrack,
               let source = selectedBackingSource,
               let url = track.fileURL(for: source),
@@ -421,14 +483,22 @@ public class RecordingViewModel: ObservableObject {
             return
         }
 
+        // Set playing state immediately to prevent race conditions
+        isBackingPlaying = true
+        backingHasStarted = true
         Logger.viewModel.info("Starting backing track playback: \(url.lastPathComponent)")
 
         // Fire and forget - don't await completion
         Task {
             do {
                 try await player.play(url: url)
+                isBackingPlaying = false
+                backingHasStarted = false
+                backingCurrentTime = 0
                 Logger.viewModel.info("Backing track playback finished")
             } catch {
+                isBackingPlaying = false
+                backingHasStarted = false
                 Logger.viewModel.error("Backing track playback error: \(error.localizedDescription)")
             }
         }
@@ -439,5 +509,80 @@ public class RecordingViewModel: ObservableObject {
         guard let player = backingTrackPlayer else { return }
         await player.stop()
         Logger.viewModel.info("Backing track playback stopped")
+    }
+
+    // MARK: - Backing Track Player Control Methods
+
+    /// Toggle backing track playback (play/pause)
+    public func toggleBackingPlayback() async {
+        guard let track = selectedBackingTrack,
+              let source = selectedBackingSource,
+              let url = track.fileURL(for: source),
+              let player = backingTrackPlayer else {
+            return
+        }
+
+        if isBackingPlaying {
+            // Pause
+            player.pause()
+            isBackingPlaying = false
+            Logger.viewModel.info("Backing track paused")
+        } else if backingHasStarted && backingCurrentTime > 0 {
+            // Resume from paused position
+            player.resume()
+            isBackingPlaying = true
+            Logger.viewModel.info("Backing track resumed")
+        } else {
+            // Start fresh playback
+            backingHasStarted = true
+            isBackingPlaying = true
+            Logger.viewModel.info("Starting backing track playback: \(url.lastPathComponent)")
+
+            Task {
+                do {
+                    try await player.play(url: url)
+                    // Playback finished
+                    isBackingPlaying = false
+                    backingHasStarted = false
+                    backingCurrentTime = 0
+                    Logger.viewModel.info("Backing track playback finished")
+                } catch {
+                    isBackingPlaying = false
+                    backingHasStarted = false
+                    Logger.viewModel.error("Backing track playback error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Seek to a specific time in the backing track
+    public func seekBacking(to time: TimeInterval) {
+        backingTrackPlayer?.seek(to: time)
+        backingCurrentTime = time
+    }
+
+    /// Stop backing track and reset
+    public func stopBacking() async {
+        guard let player = backingTrackPlayer else { return }
+        await player.stop()
+        isBackingPlaying = false
+        backingHasStarted = false
+        backingCurrentTime = 0
+        Logger.viewModel.info("Backing track stopped and reset")
+    }
+
+    /// Update backing player state from the player
+    public func updateBackingPlayerState() {
+        guard let player = backingTrackPlayer else { return }
+        backingCurrentTime = player.currentTime
+        backingDuration = player.duration
+        isBackingPlaying = player.isPlaying
+    }
+
+    /// Clear backing track selection and stop playback
+    public func clearBackingTrackWithStop() async {
+        await stopBacking()
+        selectedBackingTrack = nil
+        selectedBackingSource = nil
     }
 }

@@ -371,4 +371,8 @@ private class VocalExtractionMockPlayer: AudioPlayerProtocol {
     func seek(to time: TimeInterval) {
         currentTime = time
     }
+
+    func prepare(url: URL) throws {
+        // No-op for test
+    }
 }

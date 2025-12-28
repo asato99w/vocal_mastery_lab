@@ -9,6 +9,7 @@ public struct RecordingView: View {
     @State private var showingAlert: Bool = false
     @State private var elapsedTime: TimeInterval = 0
     @State private var timer: Timer?
+    @State private var backingPlayerTimer: Timer?
     @State private var extractingRecording: Recording?
 
     private let vocalExtractor: VocalExtractorProtocol
@@ -37,6 +38,11 @@ public struct RecordingView: View {
             // Backing track selection (only shown when not recording)
             if viewModel.recordingState == .idle {
                 backingTrackSection
+            }
+
+            // Backing track player (shown when track is selected)
+            if viewModel.selectedBackingTrack != nil && viewModel.selectedBackingSource != nil {
+                backingTrackPlayerSection
             }
 
             // Record controls (uses existing RecordingControls component)
@@ -135,9 +141,15 @@ public struct RecordingView: View {
         }
         .onDisappear {
             stopTimer()
+            stopBackingPlayerTimer()
             if viewModel.isPlayingRecording {
                 Task {
                     await viewModel.stopPlayback()
+                }
+            }
+            if viewModel.isBackingPlaying {
+                Task {
+                    await viewModel.stopBacking()
                 }
             }
             viewModel.recordingStateVM.cleanup()
@@ -189,6 +201,39 @@ public struct RecordingView: View {
         .accessibilityIdentifier("BackgroundRecordingHint")
     }
 
+    // MARK: - Backing Track Player Section
+
+    private var backingTrackPlayerSection: some View {
+        BackingTrackPlayerView(
+            trackName: viewModel.selectedBackingTrack?.displayTitle ?? "",
+            sourceName: viewModel.selectedBackingSource?.rawValue ?? "",
+            isPlaying: viewModel.isBackingPlaying,
+            currentTime: viewModel.backingCurrentTime,
+            duration: viewModel.backingDuration,
+            onTogglePlayback: {
+                Task {
+                    await viewModel.toggleBackingPlayback()
+                }
+            },
+            onSeek: { time in
+                viewModel.seekBacking(to: time)
+            },
+            onStop: {
+                Task {
+                    await viewModel.stopBacking()
+                }
+            }
+        )
+        .padding(.horizontal)
+        .onAppear {
+            // Start timer to update player state
+            startBackingPlayerTimer()
+        }
+        .onDisappear {
+            stopBackingPlayerTimer()
+        }
+    }
+
     // MARK: - Backing Track Section
 
     private var backingTrackSection: some View {
@@ -201,14 +246,16 @@ public struct RecordingView: View {
             // Recording picker
             Menu {
                 Button("なし") {
-                    viewModel.clearBackingTrack()
+                    Task {
+                        await viewModel.selectBackingTrack(nil)
+                    }
                 }
 
                 ForEach(viewModel.availableBackingTracks) { track in
                     Button(track.displayTitle) {
-                        viewModel.selectedBackingTrack = track
-                        // Auto-select first available source
-                        viewModel.selectedBackingSource = track.availableSources.first
+                        Task {
+                            await viewModel.selectBackingTrack(track)
+                        }
                     }
                 }
             } label: {
@@ -239,7 +286,9 @@ public struct RecordingView: View {
                 Menu {
                     ForEach(track.availableSources, id: \.self) { source in
                         Button(source.rawValue) {
-                            viewModel.selectedBackingSource = source
+                            Task {
+                                await viewModel.selectBackingSource(source)
+                            }
                         }
                     }
                 } label: {
@@ -313,6 +362,17 @@ public struct RecordingView: View {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    private func startBackingPlayerTimer() {
+        backingPlayerTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            viewModel.updateBackingPlayerState()
+        }
+    }
+
+    private func stopBackingPlayerTimer() {
+        backingPlayerTimer?.invalidate()
+        backingPlayerTimer = nil
     }
 
     // MARK: - Formatting
@@ -462,6 +522,10 @@ private class PreviewMockAudioPlayer: AudioPlayerProtocol {
 
     func seek(to time: TimeInterval) {
         currentTime = time
+    }
+
+    func prepare(url: URL) throws {
+        // No-op for preview
     }
 }
 

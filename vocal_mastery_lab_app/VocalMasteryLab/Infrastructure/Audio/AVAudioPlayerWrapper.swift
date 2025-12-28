@@ -1,6 +1,7 @@
 import Foundation
 import VocalisDomain
 import AVFoundation
+import OSLog
 
 /// Notification posted when audio playback finishes
 public extension Notification.Name {
@@ -13,6 +14,7 @@ public class AVAudioPlayerWrapper: NSObject, AudioPlayerProtocol {
     private let settingsRepository: AudioSettingsRepositoryProtocol
     private var audioPlayer: AVAudioPlayer?
     private var playbackContinuation: CheckedContinuation<Void, Error>?
+    private var preparedURL: URL?
 
     public init(settingsRepository: AudioSettingsRepositoryProtocol) {
         self.settingsRepository = settingsRepository
@@ -51,10 +53,16 @@ public class AVAudioPlayerWrapper: NSObject, AudioPlayerProtocol {
         audioPlayer?.currentTime = time
     }
 
-    public func play(url: URL, withPitchDetection: Bool) async throws {
+    public func prepare(url: URL) throws {
         // Check if file exists
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw AudioPlayerError.fileNotFound
+        }
+
+        // Skip if already prepared for the same URL
+        if preparedURL == url && audioPlayer != nil {
+            Logger.audio.info("Audio already prepared for: \(url.lastPathComponent)")
+            return
         }
 
         do {
@@ -66,13 +74,46 @@ public class AVAudioPlayerWrapper: NSObject, AudioPlayerProtocol {
             let settings = settingsRepository.get()
             audioPlayer?.volume = settings.recordingPlaybackVolume
 
+            // Pre-buffer the audio data
+            audioPlayer?.prepareToPlay()
+
+            preparedURL = url
+            Logger.audio.info("Audio prepared for playback: \(url.lastPathComponent)")
+
+        } catch {
+            throw AudioPlayerError.playbackFailed(error.localizedDescription)
+        }
+    }
+
+    public func play(url: URL, withPitchDetection: Bool) async throws {
+        // Check if file exists
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw AudioPlayerError.fileNotFound
+        }
+
+        do {
+            // Use prepared player if available for the same URL, otherwise create new one
+            if preparedURL != url || audioPlayer == nil {
+                audioPlayer = try AVAudioPlayer(contentsOf: url)
+                audioPlayer?.delegate = self
+
+                // Apply recording playback volume from settings
+                let settings = settingsRepository.get()
+                audioPlayer?.volume = settings.recordingPlaybackVolume
+            }
+
             // Configure audio session based on whether pitch detection is needed
-            if withPitchDetection {
-                // Use playAndRecord for pitch detection support
-                try AudioSessionManager.shared.configureForRecordingAndPlayback()
+            // Skip configuration if current session already supports playback (e.g., during recording)
+            if !AudioSessionManager.shared.currentCategorySupportsPlayback {
+                if withPitchDetection {
+                    // Use playAndRecord for pitch detection support
+                    try AudioSessionManager.shared.configureForRecordingAndPlayback()
+                } else {
+                    // Use playback for maximum volume (no recording needed)
+                    try AudioSessionManager.shared.configureForPlayback()
+                }
             } else {
-                // Use playback for maximum volume (no recording needed)
-                try AudioSessionManager.shared.configureForPlayback()
+                Logger.audio.info("Audio session already supports playback, skipping reconfiguration")
             }
             try AudioSessionManager.shared.activate()
 
@@ -101,6 +142,7 @@ public class AVAudioPlayerWrapper: NSObject, AudioPlayerProtocol {
     public func stop() async {
         audioPlayer?.stop()
         audioPlayer = nil
+        preparedURL = nil
 
         // Resume continuation if waiting
         playbackContinuation?.resume()

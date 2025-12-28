@@ -163,6 +163,19 @@ public class AudioSessionManager {
         }
     }
 
+    /// Check if current audio session category already supports playback
+    /// Returns true if current category is .playback, .playAndRecord, or other playback-capable categories
+    public var currentCategorySupportsPlayback: Bool {
+        let audioSession = AVAudioSession.sharedInstance()
+        let category = audioSession.category
+        // These categories support audio playback
+        return category == .playback ||
+               category == .playAndRecord ||
+               category == .multiRoute ||
+               category == .ambient ||
+               category == .soloAmbient
+    }
+
     /// Configure audio session for recording with playback (used during playback with pitch detection)
     public func configureForRecordingAndPlayback() throws {
         let audioSession = AVAudioSession.sharedInstance()

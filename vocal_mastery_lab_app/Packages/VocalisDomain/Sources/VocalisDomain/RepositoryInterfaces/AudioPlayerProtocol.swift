@@ -2,6 +2,10 @@ import Foundation
 
 /// Protocol for audio playback
 public protocol AudioPlayerProtocol {
+    /// Prepare audio file for playback (pre-load to reduce latency)
+    /// - Parameter url: Audio file URL
+    func prepare(url: URL) throws
+
     /// Play audio from URL
     /// - Parameters:
     ///   - url: Audio file URL
