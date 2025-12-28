@@ -49,13 +49,11 @@ public struct RecordingView: View {
             RecordingControls(
                 recordingState: viewModel.recordingState,
                 hasLastRecording: viewModel.lastRecordingURL != nil,
-                isPlayingRecording: viewModel.isPlayingRecording,
                 canStartRecording: true,
                 countdownValue: viewModel.countdownValue,
                 onStart: startRecording,
                 onStop: stopRecording,
                 onCancel: cancelCountdown,
-                onPlayLast: togglePlayback,
                 onAnalyze: nil  // No analyze button in simple mode
             )
 
@@ -142,11 +140,6 @@ public struct RecordingView: View {
         .onDisappear {
             stopTimer()
             stopBackingPlayerTimer()
-            if viewModel.isPlayingRecording {
-                Task {
-                    await viewModel.stopPlayback()
-                }
-            }
             if viewModel.isBackingPlaying {
                 Task {
                     await viewModel.stopBacking()
@@ -418,19 +411,6 @@ public struct RecordingView: View {
     private func cancelCountdown() {
         Task { @MainActor in
             await viewModel.cancelCountdown()
-        }
-    }
-
-    private func togglePlayback() {
-        if viewModel.isPlayingRecording {
-            Task {
-                await viewModel.stopPlayback()
-            }
-        } else {
-            viewModel.isPlayingRecording = true
-            Task {
-                await viewModel.playLastRecording()
-            }
         }
     }
 

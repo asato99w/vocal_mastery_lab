@@ -2,17 +2,15 @@ import SwiftUI
 import VocalisDomain
 import OSLog
 
-/// Recording control buttons (start, stop, cancel, play last, analyze)
+/// Recording control buttons (start, stop, cancel, analyze)
 struct RecordingControls: View {
     let recordingState: RecordingState
     let hasLastRecording: Bool
-    let isPlayingRecording: Bool
     let canStartRecording: Bool
     let countdownValue: Int
     let onStart: () -> Void
     let onStop: () -> Void
     let onCancel: () -> Void
-    let onPlayLast: () -> Void
     let onAnalyze: (() -> Void)?
 
     /// Whether to use compact horizontal layout (for landscape mode)
@@ -21,25 +19,21 @@ struct RecordingControls: View {
     init(
         recordingState: RecordingState,
         hasLastRecording: Bool,
-        isPlayingRecording: Bool,
         canStartRecording: Bool,
         countdownValue: Int = 3,
         onStart: @escaping () -> Void,
         onStop: @escaping () -> Void,
         onCancel: @escaping () -> Void,
-        onPlayLast: @escaping () -> Void,
         onAnalyze: (() -> Void)? = nil,
         isCompactLayout: Bool = false
     ) {
         self.recordingState = recordingState
         self.hasLastRecording = hasLastRecording
-        self.isPlayingRecording = isPlayingRecording
         self.canStartRecording = canStartRecording
         self.countdownValue = countdownValue
         self.onStart = onStart
         self.onStop = onStop
         self.onCancel = onCancel
-        self.onPlayLast = onPlayLast
         self.onAnalyze = onAnalyze
         self.isCompactLayout = isCompactLayout
     }
@@ -83,24 +77,18 @@ struct RecordingControls: View {
 
     private var idleControls: some View {
         Group {
-            if isCompactLayout && hasLastRecording {
+            if isCompactLayout && hasLastRecording && onAnalyze != nil {
                 // Horizontal layout for landscape mode
                 HStack(spacing: 12) {
                     startRecordingButton
-                    playbackButton
-                    if onAnalyze != nil {
-                        analyzeButton
-                    }
+                    analyzeButton
                 }
             } else {
                 // Vertical layout for portrait mode
                 VStack(spacing: 8) {
                     startRecordingButton
-                    if hasLastRecording {
-                        playbackButton
-                        if onAnalyze != nil {
-                            analyzeButton
-                        }
+                    if hasLastRecording && onAnalyze != nil {
+                        analyzeButton
                     }
                 }
             }
@@ -121,39 +109,6 @@ struct RecordingControls: View {
         .disabled(!canStartRecording)
         .opacity(canStartRecording ? 1.0 : 0.5)
         .accessibilityIdentifier("StartRecordingButton")
-    }
-
-    @ViewBuilder
-    private var playbackButton: some View {
-        if isPlayingRecording {
-            // Separate button for stopping playback with fixed ID
-            Button(action: {
-                Self.logger.error("UI_TEST_MARK: StopPlaybackButton action called")
-                Self.logger.logToFile(level: "ERROR", message: "UI_TEST_MARK: StopPlaybackButton action called")
-                onPlayLast()
-            }) {
-                HStack {
-                    Image(systemName: "stop.fill")
-                    Text("recording.stop_playback_button".localized)
-                }
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .accessibilityIdentifier("StopPlaybackButton")
-        } else {
-            // Separate button for playing last recording with fixed ID
-            Button(action: {
-                Self.logger.error("UI_TEST_MARK: PlayLastRecordingButton action called")
-                Self.logger.logToFile(level: "ERROR", message: "UI_TEST_MARK: PlayLastRecordingButton action called")
-                onPlayLast()
-            }) {
-                HStack {
-                    Image(systemName: "play.fill")
-                    Text("recording.play_last_button".localized)
-                }
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .accessibilityIdentifier("PlayLastRecordingButton")
-        }
     }
 
     private var analyzeButton: some View {
