@@ -56,6 +56,9 @@ public class RecordingStateViewModel: ObservableObject {
     private var recordingStartTime: Date?
     private var cancellables = Set<AnyCancellable>()
 
+    /// Stores the prepared recording URL between prepare() and start() calls
+    private var preparedRecordingURL: URL?
+
     // MARK: - Constants
 
     private static let durationMonitoringIntervalNanoseconds: UInt64 = 500_000_000 // 500ms
@@ -150,10 +153,6 @@ public class RecordingStateViewModel: ObservableObject {
         recordingState = .preparing
         Logger.viewModel.info("✅ State changed to .preparing - immediate visual feedback")
 
-        // Pre-configure audio session to reduce latency during recording start
-        try? AudioSessionManager.shared.configureForRecordingAndPlayback()
-        try? AudioSessionManager.shared.activate()
-
         // Check recording count limit
         self.dailyRecordingCount = usageTracker.getTodayCount()
         Logger.viewModel.error("🔴 RECORDING_LIMIT_MARK: Recording count check: current=\(self.dailyRecordingCount), limit=\(self.recordingLimit.dailyCount?.description ?? "nil")")
@@ -167,8 +166,6 @@ public class RecordingStateViewModel: ObservableObject {
             errorMessage = errorMsg
             FileLogger.shared.log(level: "ERROR", category: "recording", message: "❌ Recording rejected - User error message: \(errorMsg)")
             recordingState = .idle  // Reset to idle on limit failure
-            // Deactivate audio session since recording was rejected
-            try? AudioSessionManager.shared.forceDeactivate()
             return
         }
 
@@ -178,6 +175,29 @@ public class RecordingStateViewModel: ObservableObject {
         // Clear any previous error
         errorMessage = nil
 
+        // === PREPARE RECORDING DURING PREPARING PHASE ===
+        // This is where audio session configuration and recorder preparation happens
+        // If this fails (e.g., another app is playing audio), we fail early before countdown
+        do {
+            let user = createCurrentUser()
+            let recordingURL = try await startRecordingUseCase.prepare(user: user)
+            Logger.viewModel.info("Recording prepared successfully: \(recordingURL.lastPathComponent)")
+
+            // Set recording context for StopRecordingUseCase
+            stopRecordingUseCase.setRecordingContext(url: recordingURL)
+
+            // Store prepared URL for later use
+            preparedRecordingURL = recordingURL
+
+        } catch {
+            Logger.viewModel.logError(error)
+            let errorMsg = "録音の準備に失敗しました: \(error.localizedDescription)"
+            errorMessage = errorMsg
+            FileLogger.shared.log(level: "ERROR", category: "recording", message: "❌ Recording preparation failed - User error message: \(errorMsg)")
+            recordingState = .idle
+            return
+        }
+
         // If countdown is 0, skip countdown and start recording immediately
         if countdownDuration == 0 {
             isCountdownComplete = true
@@ -185,7 +205,7 @@ public class RecordingStateViewModel: ObservableObject {
             return
         }
 
-        // Start countdown
+        // Start countdown (system is now fully prepared)
         recordingState = .countdown
         countdownValue = countdownDuration
 
@@ -234,6 +254,11 @@ public class RecordingStateViewModel: ObservableObject {
         recordingState = .idle
         countdownValue = countdownDuration
         isCountdownComplete = false
+        preparedRecordingURL = nil
+
+        // Deactivate audio session since recording was cancelled
+        try? AudioSessionManager.shared.forceDeactivate()
+        Logger.viewModel.info("Countdown cancelled, audio session deactivated")
     }
 
     /// Stop the current recording
@@ -350,23 +375,22 @@ public class RecordingStateViewModel: ObservableObject {
     }
 
     /// Execute the actual recording after countdown
+    /// Note: Preparation (audio session, recorder) was already done in startRecording()
+    /// This method only starts the actual recording
     private func executeRecording() async {
         do {
-            // Create user object from current state
-            let user = createCurrentUser()
-
-            // Start recording
-            let session = try await startRecordingUseCase.execute(user: user)
+            // Start recording (preparation was done in startRecording())
+            let session = try await startRecordingUseCase.start()
             Logger.viewModel.info("Recording started")
-
-            // Set recording context for StopRecordingUseCase
-            stopRecordingUseCase.setRecordingContext(url: session.recordingURL)
 
             // Update state
             recordingState = .recording
             currentSession = session
             progress = 0.0
             recordingStartTime = Date()
+
+            // Clear prepared URL
+            preparedRecordingURL = nil
 
             // Start duration monitoring
             startDurationMonitoring()
@@ -380,6 +404,7 @@ public class RecordingStateViewModel: ObservableObject {
             currentSession = nil
             progress = 0.0
             isCountdownComplete = false  // Reset flag to prevent pitch detection from starting
+            preparedRecordingURL = nil
         }
     }
 

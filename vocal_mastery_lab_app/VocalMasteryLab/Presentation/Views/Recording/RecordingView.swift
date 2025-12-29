@@ -462,12 +462,26 @@ struct RecordingView_Previews: PreviewProvider {
 // MARK: - Preview Mocks
 
 private class PreviewMockStartRecordingUseCase: StartRecordingUseCaseProtocol {
-    func execute(user: User) async throws -> RecordingSession {
-        try await Task.sleep(nanoseconds: 1_000_000_000)
+    private var preparedURL: URL?
+
+    func prepare(user: User) async throws -> URL {
+        try await Task.sleep(nanoseconds: 500_000_000)
+        let url = URL(fileURLWithPath: "/tmp/preview.m4a")
+        preparedURL = url
+        return url
+    }
+
+    func start() async throws -> RecordingSession {
+        try await Task.sleep(nanoseconds: 100_000_000)
         return RecordingSession(
-            recordingURL: URL(fileURLWithPath: "/tmp/preview.m4a"),
+            recordingURL: preparedURL ?? URL(fileURLWithPath: "/tmp/preview.m4a"),
             startedAt: Date()
         )
+    }
+
+    func execute(user: User) async throws -> RecordingSession {
+        let _ = try await prepare(user: user)
+        return try await start()
     }
 }
 

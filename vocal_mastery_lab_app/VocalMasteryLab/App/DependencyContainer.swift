@@ -153,12 +153,10 @@ public class DependencyContainer {
     // MARK: - Presentation Layer
 
     public lazy var recordingViewModel: RecordingViewModel = {
-        #if DEBUG
-        let disableCountdown = CommandLine.arguments.contains("-UITestDisableCountdown")
-        let countdownDuration = disableCountdown ? 0 : 3
-        #else
-        let countdownDuration = 3
-        #endif
+        // Countdown disabled: iOS doesn't allow starting recording from background,
+        // so if user switches to another app during countdown, recording fails.
+        // Setting countdown to 0 starts recording immediately, avoiding this issue.
+        let countdownDuration = 0
 
         return RecordingViewModel(
             startRecordingUseCase: startRecordingUseCase,
