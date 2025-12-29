@@ -8,28 +8,6 @@
 
 import SwiftUI
 
-// MARK: - Compact Playback Control
-
-struct CompactPlaybackControl: View {
-    let isPlaying: Bool
-    let onPlayPause: () -> Void
-
-    var body: some View {
-        HStack {
-            Button(action: onPlayPause) {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(ColorPalette.primary)
-            }
-            .accessibilityIdentifier("ExpandedAnalysisPlayPauseButton")
-
-            Text(isPlaying ? "analysis.playing".localized : "analysis.paused".localized)
-                .font(.caption)
-                .foregroundColor(ColorPalette.text.opacity(0.6))
-        }
-    }
-}
-
 // MARK: - Playback Control
 
 struct PlaybackControl: View {
