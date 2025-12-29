@@ -37,7 +37,7 @@ final class RecordingListViewModelTests: XCTestCase {
         XCTAssertTrue(sut.recordings.isEmpty)
         XCTAssertFalse(sut.isLoading)
         XCTAssertNil(sut.errorMessage)
-        XCTAssertNil(sut.playingRecordingId)
+        XCTAssertFalse(sut.isPlaying)
     }
 
     // MARK: - Load Recordings Tests
@@ -112,17 +112,19 @@ final class RecordingListViewModelTests: XCTestCase {
         // Given
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            duration: Duration(seconds: 5.0),
+            duration: Duration(seconds: 5.0)
         )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
 
-        // When
-        await sut.playRecording(recording)
+        // When - use selectAndPlay to properly set up state
+        await sut.selectAndPlay(recording)
 
         // Wait for playback completion (MockAudioPlayer sleeps 10ms + processing time)
         try? await Task.sleep(nanoseconds: 30_000_000) // 30ms
 
-        // Then - after completion, should be nil
-        XCTAssertNil(sut.playingRecordingId)
+        // Then - after completion, isPlaying should be false
+        XCTAssertFalse(sut.isPlaying)
         XCTAssertTrue(mockAudioPlayer.playCalled)
         XCTAssertEqual(mockAudioPlayer.playURL, recording.fileURL)
     }
@@ -150,8 +152,8 @@ final class RecordingListViewModelTests: XCTestCase {
         // Wait briefly for playback to start
         try? await Task.sleep(nanoseconds: 20_000_000) // 20ms
 
-        // Then - playingRecordingId should be set and play was called again
-        XCTAssertEqual(sut.playingRecordingId, recording.id)
+        // Then - isPlaying should be true and play was called again
+        XCTAssertTrue(sut.isPlaying)
         XCTAssertTrue(mockAudioPlayer.playCalled)
     }
 
@@ -187,24 +189,26 @@ final class RecordingListViewModelTests: XCTestCase {
         // Given
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            duration: Duration(seconds: 5.0),
+            duration: Duration(seconds: 5.0)
         )
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
         mockAudioPlayer.playShouldFail = true
 
-        // When
-        await sut.playRecording(recording)
+        // When - use selectAndPlay to properly set up state
+        await sut.selectAndPlay(recording)
 
         // Wait for playback failure to be handled
         try? await Task.sleep(nanoseconds: 30_000_000) // 30ms
 
         // Then
         XCTAssertNotNil(sut.errorMessage)
-        XCTAssertNil(sut.playingRecordingId)
+        XCTAssertFalse(sut.isPlaying)
     }
 
     // MARK: - Stop Playback Tests
 
-    func testStopPlayback_WhenPlaying_StopsAndClearsPlayingId() async {
+    func testStopPlayback_WhenPlaying_StopsAndClearsPlayingState() async {
         // Given
         mockAudioPlayer._isPlaying = true
 
@@ -212,19 +216,19 @@ final class RecordingListViewModelTests: XCTestCase {
         await sut.stopPlayback()
 
         // Then
-        XCTAssertNil(sut.playingRecordingId)
+        XCTAssertFalse(sut.isPlaying)
         XCTAssertTrue(mockAudioPlayer.stopCalled)
     }
 
     func testStopPlayback_WhenNotPlaying_DoesNothing() async {
         // Given
-        XCTAssertNil(sut.playingRecordingId)
+        XCTAssertFalse(sut.isPlaying)
 
         // When
         await sut.stopPlayback()
 
         // Then
-        XCTAssertNil(sut.playingRecordingId)
+        XCTAssertFalse(sut.isPlaying)
         XCTAssertTrue(mockAudioPlayer.stopCalled) // Stop is called regardless
     }
 
@@ -299,11 +303,13 @@ final class RecordingListViewModelTests: XCTestCase {
         )
         mockAudioPlayer._currentTime = 5.0
         mockAudioPlayer.playDurationNanoseconds = 500_000_000 // 500ms to allow position tracking
+        mockRepository.recordingsToReturn = [recording]
+        await sut.loadRecordings()
 
-        // Start playback to set playingRecordingId
-        await sut.playRecording(recording)
+        // Start playback to set isPlaying and selectedRecording
+        await sut.selectAndPlay(recording)
 
-        // Wait for playingRecordingId to be set (non-blocking playRecording)
+        // Wait for playback to start
         try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
 
         // When
@@ -374,26 +380,30 @@ final class RecordingListViewModelTests: XCTestCase {
         XCTAssertTrue(mockAudioPlayer.playCalled)
     }
 
-    func testSelectAndPlay_AlreadySelected_DoesNothing() async {
+    func testSelectAndPlay_AlreadySelected_TogglesPlayback() async {
         // Given
         let recording = Recording(
             fileURL: URL(fileURLWithPath: "/tmp/test.m4a"),
             duration: Duration(seconds: 5.0),
         )
         mockRepository.recordingsToReturn = [recording]
+        mockAudioPlayer.playDurationNanoseconds = 500_000_000 // 500ms
         await sut.loadRecordings()
 
         // First select and play
         await sut.selectAndPlay(recording)
+        try? await Task.sleep(nanoseconds: 20_000_000) // Wait for playback to start
+        XCTAssertTrue(sut.isPlaying)
         mockAudioPlayer.reset()
+        mockAudioPlayer._isPlaying = true
 
-        // When - select same recording again (should do nothing - pause/resume is handled by toggle button)
+        // When - select same recording again (should toggle - pause)
         await sut.selectAndPlay(recording)
 
-        // Then - selection maintained, no playback actions
+        // Then - selection maintained, playback toggled (pause called)
         XCTAssertEqual(sut.selectedRecording?.id, recording.id)
-        XCTAssertFalse(mockAudioPlayer.playCalled) // No new play call
-        XCTAssertFalse(mockAudioPlayer.stopCalled) // No stop call
+        XCTAssertTrue(mockAudioPlayer.pauseCalled)
+        XCTAssertFalse(sut.isPlaying)
     }
 
     func testSelectAndPlay_DifferentRecording_SwitchesSelection() async {

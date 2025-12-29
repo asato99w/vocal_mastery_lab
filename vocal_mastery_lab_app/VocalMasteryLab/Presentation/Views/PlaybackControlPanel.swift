@@ -67,14 +67,13 @@ struct PlaybackControlPanel: View {
                         await viewModel.togglePlayback()
                     }
                 }) {
-                    let isPlaying = viewModel.selectedRecording.map { viewModel.playingRecordingId == $0.id } ?? false
-                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 44))
                         .foregroundColor(viewModel.selectedRecording != nil ? ColorPalette.primary : ColorPalette.primary.opacity(0.3))
                 }
                 .disabled(viewModel.selectedRecording == nil)
                 .accessibilityIdentifier("PlaybackControlPanel_PlayPauseButton")
-                .accessibilityLabel(viewModel.selectedRecording.map { viewModel.playingRecordingId == $0.id } ?? false ? "pause".localized : "play".localized)
+                .accessibilityLabel(viewModel.isPlaying ? "pause".localized : "play".localized)
 
                 // Next button
                 Button(action: {
@@ -103,9 +102,10 @@ struct PlaybackControlPanel: View {
                         },
                         set: { newValue in
                             if let recording = viewModel.selectedRecording {
-                                Task {
-                                    await viewModel.seek(to: newValue, for: recording.id)
-                                }
+                                // Synchronous UI update for responsive slider
+                                viewModel.updatePositionImmediate(newValue, for: recording.id)
+                                // Async audio seek
+                                viewModel.seekAudio(to: newValue)
                             }
                         }
                     ),
@@ -136,7 +136,9 @@ struct PlaybackControlPanel: View {
                 .fill(ColorPalette.background)
                 .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: -4)
         )
-        .accessibilityIdentifier("PlaybackControlPanel")
+        // Note: accessibilityIdentifier on VStack propagates to children in SwiftUI,
+        // which overrides individual child identifiers. Removed to allow child identifiers to work.
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Audio Source Picker
@@ -151,7 +153,8 @@ struct PlaybackControlPanel: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(ColorPalette.secondary)
         )
-        .accessibilityIdentifier("AudioSourcePicker")
+        // Use .contain to allow child button identifiers to work
+        .accessibilityElement(children: .contain)
     }
 
     private func audioSourceButton(for source: AudioSourceType) -> some View {

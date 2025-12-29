@@ -27,6 +27,7 @@ struct BackingTrackPlayerView: View {
                     .lineLimit(1)
                 Spacer()
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("BackingTrackInfoLabel")
 
             // Progress bar with time display
@@ -129,6 +130,7 @@ struct BackingTrackPlayerView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(ColorPalette.primary.opacity(0.3), lineWidth: 1)
         )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("BackingTrackPlayerView")
     }
 

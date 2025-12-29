@@ -342,9 +342,11 @@ public class RecordingViewModel: ObservableObject {
         extractedAudioRepository: ExtractedAudioRepositoryProtocol,
         backingTrackPlayer: AudioPlayerProtocol
     ) {
+        Logger.viewModel.info("[BackingTrack] setBackingTrackRepositories called")
         self.recordingRepository = recordingRepository
         self.extractedAudioRepository = extractedAudioRepository
         self.backingTrackPlayer = backingTrackPlayer
+        Logger.viewModel.info("[BackingTrack] backingTrackPlayer set: \(self.backingTrackPlayer != nil)")
     }
 
     /// Load available backing tracks (all recordings)
@@ -441,6 +443,9 @@ public class RecordingViewModel: ObservableObject {
 
     /// Select a backing source and reset playback state
     public func selectBackingSource(_ source: BackingTrackSource?) async {
+        // Remember if we were playing to auto-restart after switch
+        let wasPlaying = isBackingPlaying
+
         // Stop current playback if playing
         if isBackingPlaying {
             await stopBacking()
@@ -466,6 +471,11 @@ public class RecordingViewModel: ObservableObject {
         }
 
         Logger.viewModel.info("Selected backing source: \(source?.rawValue ?? "none")")
+
+        // Auto-restart playback if we were playing before the switch
+        if wasPlaying && source != nil {
+            await startBackingTrackPlayback()
+        }
     }
 
     /// Start playing the selected backing track
@@ -515,12 +525,20 @@ public class RecordingViewModel: ObservableObject {
 
     /// Toggle backing track playback (play/pause)
     public func toggleBackingPlayback() async {
+        Logger.viewModel.info("[BackingTrack] toggleBackingPlayback called")
+        Logger.viewModel.info("[BackingTrack] selectedBackingTrack: \(self.selectedBackingTrack?.displayTitle ?? "nil")")
+        Logger.viewModel.info("[BackingTrack] selectedBackingSource: \(self.selectedBackingSource?.rawValue ?? "nil")")
+        Logger.viewModel.info("[BackingTrack] backingTrackPlayer: \(self.backingTrackPlayer != nil ? "exists" : "nil")")
+
         guard let track = selectedBackingTrack,
               let source = selectedBackingSource,
               let url = track.fileURL(for: source),
               let player = backingTrackPlayer else {
+            Logger.viewModel.warning("[BackingTrack] Guard failed - missing required components")
             return
         }
+
+        Logger.viewModel.info("[BackingTrack] All guards passed. URL: \(url.lastPathComponent)")
 
         if isBackingPlaying {
             // Pause
@@ -536,7 +554,8 @@ public class RecordingViewModel: ObservableObject {
             // Start fresh playback
             backingHasStarted = true
             isBackingPlaying = true
-            Logger.viewModel.info("Starting backing track playback: \(url.lastPathComponent)")
+            Logger.viewModel.info("[BackingTrack] Setting isBackingPlaying = true")
+            Logger.viewModel.info("[BackingTrack] Starting fresh playback: \(url.lastPathComponent)")
 
             Task {
                 do {
@@ -549,7 +568,9 @@ public class RecordingViewModel: ObservableObject {
                 } catch {
                     isBackingPlaying = false
                     backingHasStarted = false
-                    Logger.viewModel.error("Backing track playback error: \(error.localizedDescription)")
+                    let errorDesc = error.localizedDescription
+                    errorMessage = "バッキングトラック再生エラー: \(errorDesc)"
+                    Logger.viewModel.error("Backing track playback error: \(errorDesc)")
                 }
             }
         }
@@ -572,11 +593,15 @@ public class RecordingViewModel: ObservableObject {
     }
 
     /// Update backing player state from the player
+    /// Note: Only updates time/duration. isBackingPlaying is managed by playback control methods
+    /// to ensure immediate UI feedback when user taps play/pause.
     public func updateBackingPlayerState() {
         guard let player = backingTrackPlayer else { return }
         backingCurrentTime = player.currentTime
         backingDuration = player.duration
-        isBackingPlaying = player.isPlaying
+        // isBackingPlaying is intentionally NOT synced here.
+        // It is managed by toggleBackingPlayback(), stopBacking(), etc.
+        // This prevents race conditions between async audio startup and timer updates.
     }
 
     /// Clear backing track selection and stop playback

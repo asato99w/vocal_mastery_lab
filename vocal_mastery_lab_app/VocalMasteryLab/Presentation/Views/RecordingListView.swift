@@ -172,7 +172,7 @@ public struct RecordingListView: View {
                 RecordingRow(
                     recording: recording,
                     isSelected: viewModel.selectedRecording?.id == recording.id,
-                    isPlaying: viewModel.playingRecordingId == recording.id,
+                    isPlaying: viewModel.isPlaying && viewModel.selectedRecording?.id == recording.id,
                     isExtracted: viewModel.hasExtractedAudio(recording),
                     availableSources: viewModel.availableSources(for: recording),
                     onTap: {
@@ -254,54 +254,56 @@ private struct RecordingRow: View {
                 .fill(isSelected ? ColorPalette.primary : Color.clear)
                 .frame(width: 4)
 
-            // Main content - tappable area for playback
-            VStack(alignment: .leading, spacing: 4) {
-                Text(recording.title ?? "recording.title".localized)
-                    .font(.headline)
-                    .foregroundColor(ColorPalette.text)
+            // Main content - tappable area for playback (using Button for reliable tap detection)
+            Button(action: onTap) {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(recording.title ?? "recording.title".localized)
+                            .font(.headline)
+                            .foregroundColor(ColorPalette.text)
 
-                HStack(spacing: 8) {
-                    // Date and duration
-                    HStack(spacing: 4) {
-                        Text(recording.formattedDate)
-                            .font(.caption)
-                            .foregroundColor(ColorPalette.text.opacity(0.6))
+                        HStack(spacing: 8) {
+                            // Date and duration
+                            HStack(spacing: 4) {
+                                Text(recording.formattedDate)
+                                    .font(.caption)
+                                    .foregroundColor(ColorPalette.text.opacity(0.6))
 
-                        Text("•")
-                            .font(.caption)
-                            .foregroundColor(ColorPalette.text.opacity(0.4))
+                                Text("•")
+                                    .font(.caption)
+                                    .foregroundColor(ColorPalette.text.opacity(0.4))
 
-                        Text(formatTime(recording.duration.seconds))
-                            .font(.caption)
-                            .foregroundColor(ColorPalette.text.opacity(0.6))
-                    }
-
-                    // Extraction status indicators
-                    if hasVocal || hasInstrumental {
-                        HStack(spacing: 4) {
-                            if hasVocal {
-                                Image(systemName: "person.wave.2")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(ColorPalette.primary)
+                                Text(formatTime(recording.duration.seconds))
+                                    .font(.caption)
+                                    .foregroundColor(ColorPalette.text.opacity(0.6))
                             }
-                            if hasInstrumental {
-                                Image(systemName: "music.note.list")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(ColorPalette.primary)
+
+                            // Extraction status indicators
+                            if hasVocal || hasInstrumental {
+                                HStack(spacing: 4) {
+                                    if hasVocal {
+                                        Image(systemName: "person.wave.2")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(ColorPalette.primary)
+                                    }
+                                    if hasInstrumental {
+                                        Image(systemName: "music.note.list")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(ColorPalette.primary)
+                                    }
+                                }
+                                .accessibilityIdentifier("ExtractionIndicators")
                             }
                         }
-                        .accessibilityIdentifier("ExtractionIndicators")
                     }
-                }
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 12)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onTap()
-            }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 12)
 
-            Spacer()
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             // Menu button
             Menu {

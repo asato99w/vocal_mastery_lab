@@ -303,6 +303,7 @@ public struct RecordingView: View {
             }
         }
         .padding(.horizontal)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("BackingTrackSection")
     }
 

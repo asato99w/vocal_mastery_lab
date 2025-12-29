@@ -8,7 +8,7 @@ public class RecordingListViewModel: ObservableObject {
     @Published public private(set) var recordings: [Recording] = []
     @Published public private(set) var isLoading: Bool = false
     @Published public private(set) var errorMessage: String?
-    @Published public private(set) var playingRecordingId: RecordingId?
+    @Published public private(set) var isPlaying: Bool = false
     @Published public private(set) var currentTime: Double = 0.0
     @Published public private(set) var currentPlaybackPosition: [RecordingId: TimeInterval] = [:]
     @Published public private(set) var selectedRecording: Recording?
@@ -52,10 +52,10 @@ public class RecordingListViewModel: ObservableObject {
 
     /// Handle playback finished notification
     private func handlePlaybackFinished() {
-        guard let recordingId = playingRecordingId else { return }
-        playingRecordingId = nil
+        guard let recording = selectedRecording else { return }
+        isPlaying = false
         stopPositionTracking()
-        currentPlaybackPosition[recordingId] = 0.0
+        currentPlaybackPosition[recording.id] = 0.0
         currentTime = 0.0
     }
 
@@ -165,7 +165,7 @@ public class RecordingListViewModel: ObservableObject {
             return
         }
 
-        playingRecordingId = recording.id
+        isPlaying = true
         currentPlayingSource = audioSource
 
         // Start playback without waiting for completion
@@ -174,8 +174,8 @@ public class RecordingListViewModel: ObservableObject {
                 try await audioPlayer.play(url: url)
                 // Playback finished naturally
                 await MainActor.run {
-                    if playingRecordingId == recording.id {
-                        playingRecordingId = nil
+                    if selectedRecording?.id == recording.id {
+                        isPlaying = false
                         stopPositionTracking()
                         // Reset position to beginning
                         currentPlaybackPosition[recording.id] = 0.0
@@ -185,8 +185,8 @@ public class RecordingListViewModel: ObservableObject {
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
-                    if playingRecordingId == recording.id {
-                        playingRecordingId = nil
+                    if selectedRecording?.id == recording.id {
+                        isPlaying = false
                         stopPositionTracking()
                         // Reset position to beginning on error too
                         currentPlaybackPosition[recording.id] = 0.0
@@ -214,7 +214,6 @@ public class RecordingListViewModel: ObservableObject {
         await audioPlayer.stop()
         currentPlaybackPosition[recording.id] = 0.0
         currentTime = 0.0
-        playingRecordingId = recording.id
         await playRecording(recording, source: source)
         await startPositionTracking()
     }
@@ -222,21 +221,21 @@ public class RecordingListViewModel: ObservableObject {
     /// Pause playback (keeps position)
     public func pausePlayback() {
         audioPlayer.pause()
-        playingRecordingId = nil
+        isPlaying = false
     }
 
     /// Resume playback from current position
     public func resumePlayback() {
-        guard let recording = selectedRecording else { return }
+        guard selectedRecording != nil else { return }
         audioPlayer.resume()
-        playingRecordingId = recording.id
+        isPlaying = true
     }
 
     /// Stop playback completely (resets position and selection)
     public func stopPlayback() async {
         await audioPlayer.stop()
         stopPositionTracking()
-        playingRecordingId = nil
+        isPlaying = false
         if let recording = selectedRecording {
             currentPlaybackPosition[recording.id] = 0.0
         }
@@ -248,7 +247,7 @@ public class RecordingListViewModel: ObservableObject {
     public func deleteRecording(_ recording: Recording) async {
         do {
             // Stop playback if this recording is playing
-            if playingRecordingId == recording.id {
+            if selectedRecording?.id == recording.id {
                 await stopPlayback()
             }
 
@@ -299,10 +298,10 @@ public class RecordingListViewModel: ObservableObject {
 
         positionTrackingTask = Task { @MainActor in
             while !Task.isCancelled {
-                if let recordingId = playingRecordingId {
+                if let recording = selectedRecording, isPlaying {
                     let position = audioPlayer.currentTime
                     currentTime = position
-                    currentPlaybackPosition[recordingId] = position
+                    currentPlaybackPosition[recording.id] = position
                 }
                 try? await Task.sleep(nanoseconds: 100_000_000) // 100ms update interval
             }
@@ -330,13 +329,25 @@ public class RecordingListViewModel: ObservableObject {
         currentTime = position
     }
 
+    /// Update position immediately (synchronous) for responsive UI during slider drag
+    public func updatePositionImmediate(_ position: TimeInterval, for recordingId: RecordingId) {
+        guard selectedRecording?.id == recordingId else { return }
+        currentPlaybackPosition[recordingId] = position
+        currentTime = position
+    }
+
+    /// Seek audio to position (async) - call after updatePositionImmediate for actual audio seek
+    public func seekAudio(to position: TimeInterval) {
+        audioPlayer.seek(to: position)
+    }
+
     // MARK: - Selection and Playback Control
 
     /// Select a recording and start playback
     public func selectAndPlay(_ recording: Recording) async {
-        // If same recording is already selected, do nothing
-        // (pause/resume is handled by the panel's play button)
+        // If same recording is already selected, toggle playback instead
         if selectedRecording?.id == recording.id {
+            await togglePlayback()
             return
         }
 
@@ -344,9 +355,9 @@ public class RecordingListViewModel: ObservableObject {
         // Must use stop() instead of pause() to properly release the continuation
         // in AVAudioPlayerWrapper, otherwise the old continuation remains and
         // prevents new playback from starting
-        if playingRecordingId != nil {
+        if isPlaying {
             await audioPlayer.stop()
-            playingRecordingId = nil
+            isPlaying = false
             stopPositionTracking()
         }
 
@@ -355,7 +366,6 @@ public class RecordingListViewModel: ObservableObject {
 
         // Select recording and update UI immediately
         selectedRecording = recording
-        playingRecordingId = recording.id  // Update UI before async operation
 
         // Pre-configure audio session to reduce latency
         try? AudioSessionManager.shared.configureForPlayback()
@@ -369,7 +379,7 @@ public class RecordingListViewModel: ObservableObject {
     public func togglePlayback() async {
         guard selectedRecording != nil else { return }
 
-        if audioPlayer.isPlaying {
+        if isPlaying {
             // Currently playing -> pause
             pausePlayback()
         } else {
