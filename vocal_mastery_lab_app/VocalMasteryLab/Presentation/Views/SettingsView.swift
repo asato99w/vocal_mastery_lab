@@ -9,41 +9,6 @@ public struct SettingsView: View {
 
     public var body: some View {
         Form {
-            // Note: Subscription section hidden while all features are free
-            // Preserved for future paid plan restoration
-
-            // Audio Settings Section
-            Section("settings.audio_section".localized) {
-                NavigationLink {
-                    AudioInputSettingsView(
-                        viewModel: DependencyContainer.shared.makeAudioInputSettingsViewModel()
-                    )
-                } label: {
-                    Label("settings.input_settings".localized, systemImage: "mic")
-                }
-
-                NavigationLink {
-                    AudioOutputSettingsView(
-                        viewModel: DependencyContainer.shared.makeAudioOutputSettingsViewModel()
-                    )
-                } label: {
-                    Label("settings.output_settings".localized, systemImage: "speaker.wave.2")
-                }
-                .accessibilityIdentifier("AudioOutputSettingsRow")
-            }
-
-            // Algorithm Settings Section
-            Section("settings.algorithm_section".localized) {
-                NavigationLink {
-                    AlgorithmSettingsView(
-                        viewModel: DependencyContainer.shared.makeAlgorithmSettingsViewModel()
-                    )
-                } label: {
-                    Label("settings.algorithm_settings".localized, systemImage: "waveform.path.ecg")
-                }
-                .accessibilityIdentifier("AlgorithmSettingsRow")
-            }
-
             Section("settings.language_section".localized) {
                 Picker("settings.language_label".localized, selection: $localization.currentLanguage) {
                     Text("settings.language_chinese_simplified".localized).tag("zh-Hans")
