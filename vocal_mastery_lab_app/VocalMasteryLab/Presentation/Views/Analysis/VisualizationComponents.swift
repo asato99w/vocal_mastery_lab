@@ -245,27 +245,11 @@ struct SpectrogramView: View {
             }
             .background(Color.black.opacity(0.1))
             .cornerRadius(8)
-            // Play/Pause button overlay (only in expanded mode)
-            .overlay(alignment: .bottom) {
-                if isExpanded, let playPause = onPlayPause {
-                    Button(action: playPause) {
-                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 44))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 4)
-                    }
-                    .padding(.bottom, 20)
-                    .accessibilityIdentifier("ExpandedAnalysisPlayPauseButton")
-                }
-            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SpectrogramView")
         .accessibilityValue(String(format: "%.3f", currentTime))
-        .onTapGesture {
-            onPlayPause?()
-        }
     }
 
 }
@@ -446,26 +430,10 @@ struct PitchAnalysisView: View {
             }
             .background(ColorPalette.secondary)
             .cornerRadius(8)
-            // Play/Pause button overlay (only in expanded mode)
-            .overlay(alignment: .bottom) {
-                if isExpanded, let playPause = onPlayPause {
-                    Button(action: playPause) {
-                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 44))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.5), radius: 4)
-                    }
-                    .padding(.bottom, 20)
-                    .accessibilityIdentifier("ExpandedAnalysisPlayPauseButton")
-                }
-            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PitchAnalysisView")
-        .onTapGesture {
-            onPlayPause?()
-        }
     }
 
     // MARK: - Scroll Position Management

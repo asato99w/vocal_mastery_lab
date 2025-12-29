@@ -132,11 +132,21 @@ public class AnalyzeRecordingUseCase {
         let fileURL = audioURL ?? recording.fileURL
         logger.info("Starting analysis for recording: \(recording.id.value.uuidString), file: \(fileURL.lastPathComponent)", category: "useCase")
 
+        // DEBUG: Log cache state for diagnosis
+        logger.debug("========================================", category: "cache")
+        logger.debug("Recording ID: \(recording.id.value.uuidString)", category: "cache")
+        logger.debug("Recording analysisAlgorithm: \(recording.analysisAlgorithm?.rawValue ?? "nil")", category: "cache")
+        logger.debug("Audio URL: \(fileURL.lastPathComponent)", category: "cache")
+
         let algorithm = currentAlgorithm
+        logger.debug("Current algorithm: \(algorithm.rawValue)", category: "cache")
+
         let algorithmChanged = recording.analysisAlgorithm != nil && recording.analysisAlgorithm != algorithm
+        logger.debug("Algorithm changed: \(algorithmChanged)", category: "cache")
 
         if algorithmChanged {
             logger.info("Algorithm changed from \(recording.analysisAlgorithm?.rawValue ?? "nil") to \(algorithm.rawValue), invalidating cache", category: "useCase")
+            logger.debug(">>> INVALIDATING CACHE due to algorithm change", category: "cache")
             // Clear in-memory cache for this recording
             analysisCache.clear()
             // Clear file cache for this recording
@@ -144,17 +154,25 @@ public class AnalyzeRecordingUseCase {
         }
 
         // Layer 1: Check in-memory cache first (full result) - only if algorithm hasn't changed
-        if !algorithmChanged, let cachedResult = analysisCache.get(recording.id) {
+        let inMemoryCached = analysisCache.get(recording.id)
+        logger.debug("In-memory cache exists: \(inMemoryCached != nil)", category: "cache")
+        if !algorithmChanged, let cachedResult = inMemoryCached {
             logger.info("In-memory cache hit for recording: \(recording.id.value.uuidString)", category: "useCase")
+            logger.debug(">>> IN-MEMORY CACHE HIT - returning cached result", category: "cache")
+            logger.debug("    pitchData.timeStamps.count: \(cachedResult.pitchData.timeStamps.count)", category: "cache")
             await progress(1.0)
             return cachedResult
         }
 
         // Layer 2: Check file cache for pitch data - only if algorithm hasn't changed
+        let fileCacheExists = pitchDataCache?.exists(recording.id) ?? false
+        logger.debug("File cache exists: \(fileCacheExists)", category: "cache")
         if !algorithmChanged,
            let pitchDataCache = pitchDataCache,
            let cachedPitchData = pitchDataCache.get(recording.id) {
             logger.info("File cache hit for pitch data, analyzing spectrogram only: \(recording.id.value.uuidString)", category: "useCase")
+            logger.debug(">>> FILE CACHE HIT - analyzing spectrogram only", category: "cache")
+            logger.debug("    cachedPitchData.timeStamps.count: \(cachedPitchData.timeStamps.count)", category: "cache")
 
             // Analyze spectrogram only (faster - skips YIN algorithm)
             let spectrogramData = try await audioFileAnalyzer.analyzeSpectrogramOnly(
@@ -172,12 +190,16 @@ public class AnalyzeRecordingUseCase {
             analysisCache.set(recording.id, result: result)
 
             logger.info("Analysis completed (pitch from cache) for recording: \(recording.id.value.uuidString)", category: "useCase")
+            logger.debug("    spectrogramData.timeStamps.count: \(spectrogramData.timeStamps.count)", category: "cache")
+            logger.debug("========================================", category: "cache")
 
             return result
         }
 
         // Layer 3: Full analysis required
         logger.info("Cache miss - full analysis for file: \(fileURL.path) with algorithm: \(algorithm.rawValue)", category: "useCase")
+        logger.debug(">>> CACHE MISS - performing FULL ANALYSIS", category: "cache")
+        logger.debug("    Algorithm: \(algorithm.rawValue)", category: "cache")
 
         // Analyze audio file with progress reporting
         let (pitchData, spectrogramData) = try await audioFileAnalyzer.analyze(
@@ -185,8 +207,13 @@ public class AnalyzeRecordingUseCase {
             progress: progress
         )
 
+        logger.debug(">>> FULL ANALYSIS COMPLETED", category: "cache")
+        logger.debug("    pitchData.timeStamps.count: \(pitchData.timeStamps.count)", category: "cache")
+        logger.debug("    spectrogramData.timeStamps.count: \(spectrogramData.timeStamps.count)", category: "cache")
+
         // Save pitch data to file cache for persistence
         pitchDataCache?.set(recording.id, pitchData: pitchData)
+        logger.debug("    Saved to file cache", category: "cache")
 
         // Create analysis result
         let result = AnalysisResult(
@@ -196,9 +223,12 @@ public class AnalyzeRecordingUseCase {
 
         // Cache the corrected results in memory
         analysisCache.set(recording.id, result: result)
+        logger.debug("    Saved to in-memory cache", category: "cache")
 
         // Update recording with the algorithm used for analysis
         await updateRecordingAlgorithm(recording: recording, algorithm: algorithm)
+        logger.debug("    Updated recording algorithm to: \(algorithm.rawValue)", category: "cache")
+        logger.debug("========================================", category: "cache")
 
         logger.info("Analysis completed (full) for recording: \(recording.id.value.uuidString)", category: "useCase")
 
