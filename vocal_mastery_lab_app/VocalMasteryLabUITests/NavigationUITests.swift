@@ -35,9 +35,9 @@ final class NavigationUITests: XCTestCase {
 
         stopButton.tap()
 
-        // Wait for recording to be saved by checking PlayButton appearance
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after save")
+        // Wait for recording to be saved by checking LastRecordingSection appearance
+        let lastRecordingSection = app.otherElements["LastRecordingSection"]
+        XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "Last recording section should appear after save")
 
         // Navigate back to Home
         app.navigationBars.buttons.element(boundBy: 0).tap()

@@ -108,8 +108,8 @@ final class ScreenshotCaptureUITests: XCTestCase {
             stopButton.tap()
 
             // Wait for recording to be saved
-            let playButton = app.buttons["PlayLastRecordingButton"]
-            XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after save")
+            let lastRecordingSection = app.otherElements["LastRecordingSection"]
+            XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "Last recording section should appear after save")
 
             // Navigate back to Home
             app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -175,27 +175,14 @@ final class ScreenshotCaptureUITests: XCTestCase {
         stopButton.tap()
 
         // Wait for recording to be saved
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after save")
+        let lastRecordingSection = app.otherElements["LastRecordingSection"]
+        XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "Last recording section should appear after save")
 
-        // Screenshot: Recording complete (ready to play)
+        // Screenshot: Recording complete
         Thread.sleep(forTimeInterval: 0.5)
         takeScreenshot(name: "02_recording_complete")
 
-        // Start playback and capture during playback
-        playButton.tap()
-
-        // Wait for playback to start
-        Thread.sleep(forTimeInterval: 1.0)
-
-        // Screenshot: Playback in progress
-        takeScreenshot(name: "02_recording_playback")
-
-        // Stop playback if still playing
-        let stopPlaybackButton = app.buttons["StopPlaybackButton"]
-        if stopPlaybackButton.waitForExistence(timeout: 1) {
-            stopPlaybackButton.tap()
-        }
+        // Note: 再生ボタンはRecordingViewから削除済み。再生機能はRecordingListViewで提供。
 
         // Navigate back to home
         app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -341,8 +328,8 @@ final class ScreenshotCaptureUITests: XCTestCase {
         stopButton.tap()
 
         // Wait for recording to be saved
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after save")
+        let lastRecordingSection = app.otherElements["LastRecordingSection"]
+        XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "Last recording section should appear after save")
 
         // Navigate back to Home
         app.navigationBars.buttons.element(boundBy: 0).tap()

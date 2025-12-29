@@ -104,40 +104,16 @@ final class SimpleRecordingUITests: XCTestCase {
         let durationLabel = app.staticTexts["LastRecordingDurationLabel"]
         XCTAssertTrue(durationLabel.exists, "Recording duration should be displayed")
 
-        // 再生ボタンが表示される
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.exists, "Play button should be visible")
-
-        // ボーカル抽出ボタンが表示される
+        // ボーカル抽出ボタンが表示される（再生ボタンはUIから削除済み）
         let vocalButton = app.buttons["VocalExtractionButton"]
         XCTAssertTrue(vocalButton.exists, "Vocal extraction button should be visible")
     }
 
     /// 再生ボタンをタップすると再生状態になる
+    /// Note: 再生ボタンはUIから削除されたため、このテストはスキップ
     @MainActor
     func testPlayback() throws {
-        let app = launchAppWithResetRecordingCount()
-
-        // Navigate and create a recording
-        app.buttons["HomeRecordButton"].tap()
-
-        let startButton = app.buttons["StartRecordingButton"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
-        startButton.tap()
-
-        let stopButton = app.buttons["StopRecordingButton"]
-        XCTAssertTrue(stopButton.waitForExistence(timeout: 10))
-        Thread.sleep(forTimeInterval: 1.0)
-        stopButton.tap()
-
-        // 再生ボタンをタップ
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5))
-        playButton.tap()
-
-        // 停止ボタンが表示される（再生中）
-        let stopPlaybackButton = app.buttons["StopPlaybackButton"]
-        XCTAssertTrue(stopPlaybackButton.waitForExistence(timeout: 3), "Stop playback button should appear during playback")
+        throw XCTSkip("Skipped: 再生ボタンはRecordingViewから削除済み。録音一覧画面での再生機能はRecordingListViewで提供。")
     }
 
     // MARK: - 4. Navigation

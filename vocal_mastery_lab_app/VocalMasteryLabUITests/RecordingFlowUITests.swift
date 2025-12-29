@@ -56,10 +56,10 @@ final class RecordingFlowUITests: XCTestCase {
         // 6. Stop recording
         stopButton.tap()
 
-        // Wait for recording to finish and be saved by checking PlayButton appearance
+        // Wait for recording to finish and be saved by checking LastRecordingSection appearance
         // No Thread.sleep needed - waitForExistence will wait for save completion
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play last recording button should appear after recording, confirming save was successful")
+        let lastRecordingSection = app.otherElements["LastRecordingSection"]
+        XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "Last recording section should appear after recording, confirming save was successful")
 
         // 7. Verify we're back to initial state (start button should appear again)
         XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start recording button should reappear after stopping recording")

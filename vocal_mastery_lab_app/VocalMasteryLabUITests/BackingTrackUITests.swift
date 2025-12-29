@@ -51,8 +51,8 @@ final class BackingTrackUITests: XCTestCase {
         stopButton.tap()
 
         // 録音完了を待つ
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "録音後に再生ボタンが表示されるべき")
+        let lastRecordingSection = app.otherElements["LastRecordingSection"]
+        XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "録音後に最後の録音セクションが表示されるべき")
         XCTAssertTrue(startButton.waitForExistence(timeout: 5), "開始ボタンが再表示されるべき")
 
         // 録音直後（再読み込みなし）でカウントを取得

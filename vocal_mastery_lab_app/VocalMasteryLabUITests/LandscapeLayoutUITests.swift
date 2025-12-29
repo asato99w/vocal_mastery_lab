@@ -13,8 +13,9 @@ final class LandscapeLayoutUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Test landscape layout during recording and playback
+    /// Test landscape layout during recording
     /// Captures screenshots in landscape orientation to verify UI layout
+    /// Note: 再生ボタンはRecordingViewから削除されたため、再生テストはスキップ
     @MainActor
     func testLandscapeRecordingAndPlayback() throws {
         let app = launchAppWithResetRecordingCount()
@@ -55,33 +56,18 @@ final class LandscapeLayoutUITests: XCTestCase {
         stopButton.tap()
 
         // Wait for recording to finish
-        let playButton = app.buttons["PlayLastRecordingButton"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play button should appear after recording")
+        let lastRecordingSection = app.otherElements["LastRecordingSection"]
+        XCTAssertTrue(lastRecordingSection.waitForExistence(timeout: 5), "Last recording section should appear after recording")
 
-        // Screenshot 4: Landscape - After recording (ready to play)
+        // Screenshot 4: Landscape - After recording
         takeScreenshot(app, name: "landscape_04_after_recording")
 
-        // 6. Play the recording
-        playButton.tap()
-
-        // Wait for playback to start
-        Thread.sleep(forTimeInterval: 0.5)
-
-        // Screenshot 5: Landscape - During playback
-        takeScreenshot(app, name: "landscape_05_during_playback")
-
-        // Wait a bit more during playback
-        Thread.sleep(forTimeInterval: 1.0)
-
-        // Screenshot 6: Landscape - Playback continued
-        takeScreenshot(app, name: "landscape_06_playback_continued")
-
-        // 7. Rotate back to portrait
+        // 6. Rotate back to portrait
         XCUIDevice.shared.orientation = .portrait
         Thread.sleep(forTimeInterval: 0.5)
 
-        // Screenshot 7: Portrait - During playback
-        takeScreenshot(app, name: "landscape_07_portrait_playback")
+        // Screenshot 5: Portrait - After recording
+        takeScreenshot(app, name: "landscape_05_portrait_after_recording")
     }
 
     /// Test landscape layout with scale settings visible
