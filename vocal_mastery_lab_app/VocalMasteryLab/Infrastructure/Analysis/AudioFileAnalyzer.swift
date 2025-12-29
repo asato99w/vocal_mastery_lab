@@ -69,14 +69,19 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
 
         logger.info("File loaded: \(samples.count) samples, duration: \(String(format: "%.2f", duration))s")
 
-        // Analyze pitch (0% → 50%)
+        // Progress weighting: Pitch detection (especially FCPE) takes much longer than spectrogram
+        // Pitch: 90% of total progress, Spectrogram: 10% of total progress
+        let pitchWeight = 0.9
+        let spectrogramWeight = 0.1
+
+        // Analyze pitch (0% → 90%)
         let pitchData = try await analyzePitch(samples: samples, duration: duration) { pitchProgress in
-            await progress(pitchProgress * 0.5)  // Scale to 0.0 → 0.5
+            await progress(pitchProgress * pitchWeight)
         }
 
-        // Analyze spectrogram (50% → 100%)
+        // Analyze spectrogram (90% → 100%)
         let spectrogramData = try await analyzeSpectrogram(samples: samples, duration: duration) { spectrogramProgress in
-            await progress(0.5 + spectrogramProgress * 0.5)  // Scale to 0.5 → 1.0
+            await progress(pitchWeight + spectrogramProgress * spectrogramWeight)
         }
 
         // Report final progress
@@ -129,8 +134,13 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
     private func analyzePitch(samples: [Float], duration: Double, progress: @escaping @MainActor (Double) async -> Void) async throws -> PitchAnalysisData {
         logger.info("Using pitch detection strategy: \(self.pitchStrategy.name)")
 
-        // Use strategy to detect pitch
-        let frames = pitchStrategy.detectPitch(samples: samples, sampleRate: sampleRate)
+        // Use async strategy with progress callback to get real-time progress updates
+        // The callback reports pitch detection progress (0.0 to 1.0)
+        let frames = await pitchStrategy.detectPitch(samples: samples, sampleRate: sampleRate) { pitchProgress in
+            // Report pitch detection progress directly
+            // This is called during the actual pitch detection (e.g., after each FCPE chunk)
+            await progress(pitchProgress)
+        }
 
         // Apply latency compensation to timestamps
         var timeStamps: [Double] = []
@@ -141,7 +151,7 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
         // For detecting note transitions in logs
         var lastLoggedMidiNote: Int = -1
 
-        for (index, frame) in frames.enumerated() {
+        for (_, frame) in frames.enumerated() {
             guard let frequency = frame.frequency else { continue }
 
             // Apply latency compensation: shift timestamp earlier to account for FFT window center
@@ -170,15 +180,11 @@ public class AudioFileAnalyzer: AudioFileAnalyzerProtocol {
                 }
             }
 
-            // Report progress periodically
-            if index % 10 == 0 {
-                let currentProgress = Double(index) / Double(frames.count)
-                await progress(currentProgress)
-            }
+            // Note: Progress is now reported by the strategy during detectPitch()
+            // Frame iteration is fast and doesn't need separate progress reporting
         }
 
-        // Report final progress
-        await progress(1.0)
+        // Note: Final progress (1.0) was already reported by the strategy
 
         let detectionRate = frames.isEmpty ? 0.0 : Double(timeStamps.count) / Double(frames.count) * 100.0
 
