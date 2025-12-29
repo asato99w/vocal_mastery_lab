@@ -110,12 +110,13 @@ final class BackingTrackUITests: XCTestCase {
         XCTAssertTrue(startButton.waitForExistence(timeout: 5))
         Thread.sleep(forTimeInterval: 0.5)
 
-        // バッキングトラックピッカーが存在することを確認
-        // Note: SwiftUI Menuは親VStackの識別子を継承するため、BackingTrackSectionを使用
-        let backingPicker = app.buttons["BackingTrackSection"]
-        XCTAssertTrue(backingPicker.waitForExistence(timeout: 5), "バッキングトラックピッカーが存在すべき")
+        // バッキングトラックセクションが存在することを確認
+        let backingSection = app.otherElements["BackingTrackSection"]
+        XCTAssertTrue(backingSection.waitForExistence(timeout: 5), "バッキングトラックセクションが存在すべき")
 
-        // ピッカーをタップして録音を選択
+        // バッキングトラックピッカー（Menu）をタップして録音を選択
+        let backingPicker = app.buttons["BackingTrackPicker"]
+        XCTAssertTrue(backingPicker.waitForExistence(timeout: 5), "バッキングトラックピッカーが存在すべき")
         backingPicker.tap()
         Thread.sleep(forTimeInterval: 0.5)
 
@@ -125,8 +126,8 @@ final class BackingTrackUITests: XCTestCase {
         var selectedTrack = false
         for button in allButtons {
             let label = button.label
-            // 「なし」と「BackingTrackSection」以外のボタンを探す
-            if !label.isEmpty && label != "なし" && !label.contains("chevron") && button.identifier != "BackingTrackSection" {
+            // 「なし」と「BackingTrackPicker」以外のボタンを探す
+            if !label.isEmpty && label != "なし" && !label.contains("chevron") && button.identifier != "BackingTrackPicker" {
                 // 日付形式（録音のタイトル）らしきものを選択
                 if label.contains("/") || label.contains("録音") || label.count > 5 {
                     button.tap()
@@ -188,10 +189,13 @@ final class BackingTrackUITests: XCTestCase {
         XCTAssertTrue(startButton.waitForExistence(timeout: 5))
         Thread.sleep(forTimeInterval: 0.5)
 
-        // バッキングトラックを選択
-        // Note: SwiftUI Menuは親VStackの識別子を継承するため、BackingTrackSectionを使用
-        let backingPicker = app.buttons["BackingTrackSection"]
-        XCTAssertTrue(backingPicker.waitForExistence(timeout: 5))
+        // バッキングトラックセクションが存在することを確認
+        let backingSection = app.otherElements["BackingTrackSection"]
+        XCTAssertTrue(backingSection.waitForExistence(timeout: 5), "バッキングトラックセクションが存在すべき")
+
+        // バッキングトラックピッカー（Menu）をタップして録音を選択
+        let backingPicker = app.buttons["BackingTrackPicker"]
+        XCTAssertTrue(backingPicker.waitForExistence(timeout: 5), "バッキングトラックピッカーが存在すべき")
         backingPicker.tap()
         Thread.sleep(forTimeInterval: 0.5)
 
