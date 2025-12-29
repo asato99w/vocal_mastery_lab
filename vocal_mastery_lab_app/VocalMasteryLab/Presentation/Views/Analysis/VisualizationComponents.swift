@@ -250,9 +250,6 @@ struct SpectrogramView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SpectrogramView")
         .accessibilityValue(String(format: "%.3f", currentTime))
-        .onTapGesture {
-            onPlayPause?()
-        }
     }
 
 }
@@ -437,9 +434,6 @@ struct PitchAnalysisView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PitchAnalysisView")
-        .onTapGesture {
-            onPlayPause?()
-        }
     }
 
     // MARK: - Scroll Position Management
