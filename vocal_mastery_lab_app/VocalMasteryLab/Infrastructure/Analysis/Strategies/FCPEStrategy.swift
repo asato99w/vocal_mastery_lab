@@ -24,6 +24,12 @@ public final class FCPEStrategy: PitchDetectionStrategy {
         static let f0Max: Double = 1975.5
         static let outDims = 360
         static let voicedThreshold: Float = 0.006
+
+        // Chunking constants for long audio processing
+        // Process in 15-second chunks - CoreML model has issues with 30s (3000 frames)
+        // Shorter chunks produce valid output while still maintaining efficiency
+        static let maxChunkDurationSeconds: Double = 15.0
+        static let chunkOverlapSeconds: Double = 0.5  // 500ms overlap for continuity
     }
 
     // MARK: - PitchDetectionStrategy
@@ -49,9 +55,9 @@ public final class FCPEStrategy: PitchDetectionStrategy {
             Float(f0MelMin + (f0MelMax - f0MelMin) * Double(i) / Double(Constants.outDims - 1))
         }
 
-        // Load model and filterbank lazily
-        loadModelIfNeeded()
+        // Load filterbank first (needed for model warmup), then model
         loadMelFilterbankIfNeeded()
+        loadModelIfNeeded()
     }
 
     // MARK: - Pitch Detection
@@ -74,16 +80,73 @@ public final class FCPEStrategy: PitchDetectionStrategy {
 
         FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Model and filterbank ready")
 
-        do {
-            // 1. Resample to 16kHz if needed
-            let resampled = resample(samples, from: sampleRate, to: Constants.targetSampleRate)
-            FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Resampled: \(samples.count) -> \(resampled.count) samples")
+        // 1. Resample to 16kHz if needed
+        let resampled = resample(samples, from: sampleRate, to: Constants.targetSampleRate)
+        FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Resampled: \(samples.count) -> \(resampled.count) samples")
 
-            // 2. Calculate per-frame amplitudes from resampled audio
+        // Check if chunking is needed
+        let audioDurationSeconds = Double(resampled.count) / Constants.targetSampleRate
+        if audioDurationSeconds > Constants.maxChunkDurationSeconds {
+            FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Long audio detected (\(String(format: "%.1f", audioDurationSeconds))s), using chunked processing")
+            return detectPitchChunked(resampled: resampled, model: model, progress: nil)
+        }
+
+        // Short audio: process directly
+        return detectPitchDirect(resampled: resampled, model: model)
+    }
+
+    /// Async version with progress reporting - overrides default extension for FCPE
+    public func detectPitch(samples: [Float], sampleRate: Double, progress: PitchDetectionProgressCallback?) async -> [PitchFrame] {
+        FileLogger.shared.log(level: "INFO", category: "FCPE", message: "detectPitch (async) called: \(samples.count) samples at \(sampleRate)Hz")
+
+        await progress?(0.0)
+
+        guard !samples.isEmpty else {
+            FileLogger.shared.log(level: "WARN", category: "FCPE", message: "Empty samples array")
+            await progress?(1.0)
+            return []
+        }
+
+        guard let model = model, let melFilterbank = melFilterbank else {
+            let modelStatus = model == nil ? "nil" : "loaded"
+            let filterbankStatus = melFilterbank == nil ? "nil" : "loaded"
+            FileLogger.shared.log(level: "ERROR", category: "FCPE", message: "Model or filterbank not loaded - model: \(modelStatus), filterbank: \(filterbankStatus)")
+            print("[FCPE] Model or filterbank not loaded")
+            await progress?(1.0)
+            return []
+        }
+
+        FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Model and filterbank ready")
+
+        // 1. Resample to 16kHz if needed
+        let resampled = resample(samples, from: sampleRate, to: Constants.targetSampleRate)
+        FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Resampled: \(samples.count) -> \(resampled.count) samples")
+
+        // Check if chunking is needed
+        let audioDurationSeconds = Double(resampled.count) / Constants.targetSampleRate
+        if audioDurationSeconds > Constants.maxChunkDurationSeconds {
+            FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Long audio detected (\(String(format: "%.1f", audioDurationSeconds))s), using chunked processing with progress")
+            let result = await detectPitchChunkedAsync(resampled: resampled, model: model, progress: progress)
+            await progress?(1.0)
+            return result
+        }
+
+        // Short audio: process directly (report progress at start and end)
+        await progress?(0.1)  // Small progress to show we started
+        let result = detectPitchDirect(resampled: resampled, model: model)
+        await progress?(1.0)
+        return result
+    }
+
+    // MARK: - Direct Processing (for short audio)
+
+    private func detectPitchDirect(resampled: [Float], model: MLModel) -> [PitchFrame] {
+        do {
+            // 1. Calculate per-frame amplitudes from resampled audio
             let frameAmplitudes = calculateFrameAmplitudes(resampled)
             FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Calculated \(frameAmplitudes.count) frame amplitudes")
 
-            // 3. Compute Mel spectrogram
+            // 2. Compute Mel spectrogram
             let melSpec = computeMelSpectrogram(resampled)
             FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Mel spectrogram: \(melSpec.count) frames x \(melSpec.first?.count ?? 0) mels")
 
@@ -92,7 +155,7 @@ public final class FCPEStrategy: PitchDetectionStrategy {
                 return []
             }
 
-            // 4. Run CoreML inference
+            // 3. Run CoreML inference
             let logits = try runInference(melSpec: melSpec, model: model)
             FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Inference complete: \(logits.count) frames x \(logits.first?.count ?? 0) bins")
 
@@ -103,7 +166,7 @@ public final class FCPEStrategy: PitchDetectionStrategy {
                 FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Logit range: min=\(minLogit), max=\(maxLogit), threshold=\(Constants.voicedThreshold)")
             }
 
-            // 5. Decode logits to F0
+            // 4. Decode logits to F0
             let f0Hz = decodeLogits(logits)
             let voicedCount = f0Hz.filter { $0 > 0 }.count
             FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Decoded: \(f0Hz.count) frames, \(voicedCount) voiced (\(String(format: "%.1f", Double(voicedCount) / Double(max(1, f0Hz.count)) * 100))%)")
@@ -116,7 +179,7 @@ public final class FCPEStrategy: PitchDetectionStrategy {
                 FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Frequency range: \(String(format: "%.1f", minFreq))Hz - \(String(format: "%.1f", maxFreq))Hz")
             }
 
-            // 6. Convert to PitchFrames with actual amplitudes
+            // 5. Convert to PitchFrames with actual amplitudes
             let frames = buildPitchFrames(f0Hz: f0Hz, amplitudes: frameAmplitudes)
             let voicedFrames = frames.filter { $0.frequency != nil }
             FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Result: \(frames.count) PitchFrames, \(voicedFrames.count) with pitch data")
@@ -127,6 +190,157 @@ public final class FCPEStrategy: PitchDetectionStrategy {
             print("[FCPE] Error: \(error)")
             return []
         }
+    }
+
+    // MARK: - Chunked Processing (for long audio)
+
+    /// Synchronous chunked processing (for backward compatibility)
+    private func detectPitchChunked(resampled: [Float], model: MLModel, progress: PitchDetectionProgressCallback?) -> [PitchFrame] {
+        let chunkSamples = Int(Constants.maxChunkDurationSeconds * Constants.targetSampleRate)
+        let overlapSamples = Int(Constants.chunkOverlapSeconds * Constants.targetSampleRate)
+        let stepSamples = chunkSamples - overlapSamples
+
+        // Calculate total number of chunks for progress
+        let totalChunks = max(1, Int(ceil(Double(resampled.count - chunkSamples) / Double(stepSamples))) + 1)
+
+        var allFrames: [PitchFrame] = []
+        var chunkIndex = 0
+        var sampleOffset = 0
+
+        while sampleOffset < resampled.count {
+            let chunkEnd = min(sampleOffset + chunkSamples, resampled.count)
+            let chunk = Array(resampled[sampleOffset..<chunkEnd])
+
+            FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Processing chunk \(chunkIndex): samples \(sampleOffset)-\(chunkEnd) (\(chunk.count) samples)")
+
+            do {
+                // Process this chunk
+                let frameAmplitudes = calculateFrameAmplitudes(chunk)
+                let melSpec = computeMelSpectrogram(chunk)
+
+                guard !melSpec.isEmpty else {
+                    FileLogger.shared.log(level: "WARN", category: "FCPE", message: "Empty mel spectrogram for chunk \(chunkIndex)")
+                    sampleOffset += stepSamples
+                    chunkIndex += 1
+                    continue
+                }
+
+                let logits = try runInference(melSpec: melSpec, model: model)
+                let f0Hz = decodeLogits(logits)
+
+                // Log voiced/unvoiced statistics
+                let voicedInChunk = f0Hz.filter { $0 > 0 }.count
+                FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Chunk \(chunkIndex) decoded: \(f0Hz.count) frames, \(voicedInChunk) voiced (\(String(format: "%.1f", Double(voicedInChunk) / Double(max(1, f0Hz.count)) * 100))%)")
+
+                // Calculate time offset for this chunk
+                let timeOffset = Double(sampleOffset) / Constants.targetSampleRate
+
+                // Build frames with correct timestamps
+                let chunkFrames = buildPitchFrames(f0Hz: f0Hz, amplitudes: frameAmplitudes, timeOffset: timeOffset)
+
+                // For first chunk, add all frames
+                // For subsequent chunks, skip overlap region to avoid duplicates
+                if chunkIndex == 0 {
+                    allFrames.append(contentsOf: chunkFrames)
+                } else {
+                    // Skip frames in the overlap region (already processed in previous chunk)
+                    let overlapFrames = Int(Constants.chunkOverlapSeconds / (Double(Constants.hopLength) / Constants.targetSampleRate))
+                    let framesToSkip = min(overlapFrames, chunkFrames.count)
+                    let newFrames = Array(chunkFrames.dropFirst(framesToSkip))
+                    allFrames.append(contentsOf: newFrames)
+                }
+
+                FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Chunk \(chunkIndex) processed: \(chunkFrames.count) frames, total: \(allFrames.count)")
+
+            } catch {
+                FileLogger.shared.log(level: "ERROR", category: "FCPE", message: "Error processing chunk \(chunkIndex): \(error)")
+            }
+
+            sampleOffset += stepSamples
+            chunkIndex += 1
+        }
+
+        let voicedFrames = allFrames.filter { $0.frequency != nil }
+        FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Chunked processing complete: \(allFrames.count) total frames, \(voicedFrames.count) voiced (\(String(format: "%.1f", Double(voicedFrames.count) / Double(max(1, allFrames.count)) * 100))%)")
+
+        return allFrames
+    }
+
+    /// Async chunked processing with progress reporting
+    private func detectPitchChunkedAsync(resampled: [Float], model: MLModel, progress: PitchDetectionProgressCallback?) async -> [PitchFrame] {
+        let chunkSamples = Int(Constants.maxChunkDurationSeconds * Constants.targetSampleRate)
+        let overlapSamples = Int(Constants.chunkOverlapSeconds * Constants.targetSampleRate)
+        let stepSamples = chunkSamples - overlapSamples
+
+        // Calculate total number of chunks for progress
+        let totalChunks = max(1, Int(ceil(Double(resampled.count - chunkSamples) / Double(stepSamples))) + 1)
+
+        var allFrames: [PitchFrame] = []
+        var chunkIndex = 0
+        var sampleOffset = 0
+
+        while sampleOffset < resampled.count {
+            let chunkEnd = min(sampleOffset + chunkSamples, resampled.count)
+            let chunk = Array(resampled[sampleOffset..<chunkEnd])
+
+            FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Processing chunk \(chunkIndex)/\(totalChunks): samples \(sampleOffset)-\(chunkEnd) (\(chunk.count) samples)")
+
+            do {
+                // Process this chunk
+                let frameAmplitudes = calculateFrameAmplitudes(chunk)
+                let melSpec = computeMelSpectrogram(chunk)
+
+                guard !melSpec.isEmpty else {
+                    FileLogger.shared.log(level: "WARN", category: "FCPE", message: "Empty mel spectrogram for chunk \(chunkIndex)")
+                    sampleOffset += stepSamples
+                    chunkIndex += 1
+                    continue
+                }
+
+                let logits = try runInference(melSpec: melSpec, model: model)
+                let f0Hz = decodeLogits(logits)
+
+                // Log voiced/unvoiced statistics
+                let voicedInChunk = f0Hz.filter { $0 > 0 }.count
+                FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Chunk \(chunkIndex) decoded: \(f0Hz.count) frames, \(voicedInChunk) voiced (\(String(format: "%.1f", Double(voicedInChunk) / Double(max(1, f0Hz.count)) * 100))%)")
+
+                // Calculate time offset for this chunk
+                let timeOffset = Double(sampleOffset) / Constants.targetSampleRate
+
+                // Build frames with correct timestamps
+                let chunkFrames = buildPitchFrames(f0Hz: f0Hz, amplitudes: frameAmplitudes, timeOffset: timeOffset)
+
+                // For first chunk, add all frames
+                // For subsequent chunks, skip overlap region to avoid duplicates
+                if chunkIndex == 0 {
+                    allFrames.append(contentsOf: chunkFrames)
+                } else {
+                    // Skip frames in the overlap region (already processed in previous chunk)
+                    let overlapFrames = Int(Constants.chunkOverlapSeconds / (Double(Constants.hopLength) / Constants.targetSampleRate))
+                    let framesToSkip = min(overlapFrames, chunkFrames.count)
+                    let newFrames = Array(chunkFrames.dropFirst(framesToSkip))
+                    allFrames.append(contentsOf: newFrames)
+                }
+
+                FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Chunk \(chunkIndex) processed: \(chunkFrames.count) frames, total: \(allFrames.count)")
+
+                // Report progress after each chunk
+                let currentProgress = Double(chunkIndex + 1) / Double(totalChunks)
+                await progress?(currentProgress)
+                FileLogger.shared.log(level: "DEBUG", category: "FCPE", message: "Progress: \(String(format: "%.1f", currentProgress * 100))%")
+
+            } catch {
+                FileLogger.shared.log(level: "ERROR", category: "FCPE", message: "Error processing chunk \(chunkIndex): \(error)")
+            }
+
+            sampleOffset += stepSamples
+            chunkIndex += 1
+        }
+
+        let voicedFrames = allFrames.filter { $0.frequency != nil }
+        FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Chunked processing complete: \(allFrames.count) total frames, \(voicedFrames.count) voiced (\(String(format: "%.1f", Double(voicedFrames.count) / Double(max(1, allFrames.count)) * 100))%)")
+
+        return allFrames
     }
 
     // MARK: - Model Loading
@@ -146,6 +360,8 @@ public final class FCPEStrategy: PitchDetectionStrategy {
                 model = try MLModel(contentsOf: compiledModelURL)
                 FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Compiled model loaded successfully")
                 print("[FCPE] Compiled model loaded successfully")
+                // Perform warmup inference to ensure model is fully initialized
+                warmupModel()
                 return
             } catch {
                 FileLogger.shared.log(level: "ERROR", category: "FCPE", message: "Failed to load compiled model: \(error)")
@@ -171,9 +387,45 @@ public final class FCPEStrategy: PitchDetectionStrategy {
             model = try MLModel(contentsOf: compiledURL)
             FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Model loaded successfully")
             print("[FCPE] Model loaded successfully")
+            // Perform warmup inference to ensure model is fully initialized
+            warmupModel()
         } catch {
             FileLogger.shared.log(level: "ERROR", category: "FCPE", message: "Failed to load model: \(error)")
             print("[FCPE] Failed to load model: \(error)")
+        }
+    }
+
+    /// Perform a warmup inference to ensure CoreML model is fully initialized
+    /// This prevents the first real inference from returning all zeros
+    private func warmupModel() {
+        guard let model = model, let melFilterbank = melFilterbank else {
+            FileLogger.shared.log(level: "WARN", category: "FCPE", message: "Cannot warmup: model or filterbank not loaded")
+            return
+        }
+
+        FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Performing model warmup inference...")
+
+        // Create a small dummy mel spectrogram (100 frames = 1 second at 10ms per frame)
+        let warmupFrames = 100
+        var dummyMelSpec = [[Float]]()
+        for _ in 0..<warmupFrames {
+            // Create a simple mel frame with some variation to avoid constant input
+            var frame = [Float](repeating: 0.0, count: Constants.nMels)
+            for m in 0..<Constants.nMels {
+                frame[m] = Float.random(in: -10.0...0.0)  // Log-scale mel values
+            }
+            dummyMelSpec.append(frame)
+        }
+
+        do {
+            // Run warmup inference to ensure CoreML model is fully initialized
+            // This is necessary because the model can produce zeros on first long inference
+            let _ = try runInference(melSpec: dummyMelSpec, model: model)
+            FileLogger.shared.log(level: "INFO", category: "FCPE", message: "Model warmup complete")
+            print("[FCPE] Model warmup complete")
+        } catch {
+            FileLogger.shared.log(level: "ERROR", category: "FCPE", message: "Model warmup failed: \(error)")
+            print("[FCPE] Model warmup failed: \(error)")
         }
     }
 
@@ -461,11 +713,11 @@ public final class FCPEStrategy: PitchDetectionStrategy {
 
     // MARK: - PitchFrame Building
 
-    private func buildPitchFrames(f0Hz: [Float], amplitudes: [Float]) -> [PitchFrame] {
+    private func buildPitchFrames(f0Hz: [Float], amplitudes: [Float], timeOffset: Double = 0.0) -> [PitchFrame] {
         let hopSeconds = Double(Constants.hopLength) / Constants.targetSampleRate
 
         return f0Hz.enumerated().map { index, frequency in
-            let timestamp = Double(index) * hopSeconds
+            let timestamp = timeOffset + Double(index) * hopSeconds
             let isVoiced = frequency > 0
 
             // Use actual amplitude from audio, or 0 if index out of bounds
