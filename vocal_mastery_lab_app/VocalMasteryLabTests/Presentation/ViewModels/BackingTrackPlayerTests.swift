@@ -335,21 +335,57 @@ final class BackingTrackPlayerTests: XCTestCase {
         mockExtractedAudioRepository.storedAudios = [extractedVocal]
         await sut.loadBackingTracks()
 
-        await sut.selectBackingTrack(sut.availableBackingTracks.first)
-        mockBackingTrackPlayer.playDurationNanoseconds = 1_000_000_000
+        // Verify tracks were loaded with correct sources
+        XCTAssertEqual(sut.availableBackingTracks.count, 1, "Should have 1 backing track")
+        let track = sut.availableBackingTracks.first
+        XCTAssertNotNil(track, "Track should exist")
+        XCTAssertEqual(track?.availableSources.count, 2, "Track should have 2 sources (original + vocal)")
+        XCTAssertTrue(track?.availableSources.contains(.original) ?? false, "Should have original source")
+        XCTAssertTrue(track?.availableSources.contains(.vocal) ?? false, "Should have vocal source")
+
+        // Set playback duration BEFORE any playback operations
+        mockBackingTrackPlayer.playDurationNanoseconds = 5_000_000_000 // 5 seconds
+        mockBackingTrackPlayer._duration = 60.0
+
+        await sut.selectBackingTrack(track)
+
+        // Debug: Verify selection state
+        XCTAssertNotNil(sut.selectedBackingTrack, "Track should be selected")
+        XCTAssertEqual(sut.selectedBackingSource, .original, "Initial source should be original")
+
+        // Start playback
         await sut.toggleBackingPlayback()
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
-        // Verify playing
-        XCTAssertTrue(sut.isBackingPlaying)
+        // Wait for Task to start
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
-        // When - Change source
+        // Debug: Check playback state
+        let playCalled = mockBackingTrackPlayer.playCalled
+        let isPlaying = sut.isBackingPlaying
+        XCTAssertTrue(playCalled, "Play should have been called on mock")
+        XCTAssertTrue(isPlaying, "isBackingPlaying should be true after toggleBackingPlayback")
+
+        // Only proceed with source change test if playback started
+        guard playCalled && isPlaying else {
+            XCTFail("Playback did not start properly - playCalled: \(playCalled), isPlaying: \(isPlaying)")
+            return
+        }
+
+        // Reset stopCalled and playCalled flags
+        mockBackingTrackPlayer.stopCalled = false
+        mockBackingTrackPlayer.playCalled = false
+
+        // When - Change source to vocal
         await sut.selectBackingSource(.vocal)
 
-        // Then - Playback should stop and state should reset
-        XCTAssertTrue(mockBackingTrackPlayer.stopCalled)
-        XCTAssertFalse(sut.isBackingPlaying)
-        XCTAssertEqual(sut.backingCurrentTime, 0)
-        XCTAssertEqual(sut.selectedBackingSource, .vocal)
+        // Wait for auto-restart playback Task to execute
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+        // Then - Playback should stop, state should reset, then auto-restart on new source
+        XCTAssertTrue(mockBackingTrackPlayer.stopCalled, "Stop should be called when changing source while playing")
+        // Note: selectBackingSource auto-restarts playback if wasPlaying was true (seamless source switch)
+        XCTAssertTrue(mockBackingTrackPlayer.playCalled, "Play should be called again for new source")
+        XCTAssertTrue(sut.isBackingPlaying, "Should continue playing after seamless source change")
+        XCTAssertEqual(sut.selectedBackingSource, .vocal, "Source should be updated to vocal")
     }
 }

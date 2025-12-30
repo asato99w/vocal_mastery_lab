@@ -76,3 +76,7 @@ Pods/
 
 # POC test outputs
 poc/tests/
+
+# Test coverage reports
+coverage_reports/
+*.xcresult
