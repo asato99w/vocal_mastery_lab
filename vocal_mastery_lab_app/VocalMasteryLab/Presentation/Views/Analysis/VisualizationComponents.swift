@@ -581,6 +581,37 @@ struct PitchAnalysisView: View {
         return Double(frequency)
     }
 
+    /// Calculate all semitone frequencies within the recording's pitch range
+    /// - Parameter data: Pitch analysis data containing detected frequencies
+    /// - Returns: Array of frequencies for each semitone from lowest to highest pitch
+    private func calculateSemitoneFrequencies(from data: PitchAnalysisData) -> [Double] {
+        guard !data.frequencies.isEmpty else { return [] }
+
+        // Filter valid frequencies (above 50Hz to exclude noise)
+        let validFrequencies = data.frequencies.filter { $0 >= 50.0 }
+        guard let minFreq = validFrequencies.min(),
+              let maxFreq = validFrequencies.max() else { return [] }
+
+        // Convert to MIDI notes
+        // MIDI note = 12 * log2(freq / 440) + 69
+        var minMidiNote = Int(floor(12.0 * log2(Double(minFreq) / 440.0) + 69.0))
+        let maxMidiNote = Int(ceil(12.0 * log2(Double(maxFreq) / 440.0) + 69.0))
+
+        // Clamp minimum to B1 (MIDI 35, ~61.7Hz) to avoid cut-off at bottom
+        let b1MidiNote = 35
+        minMidiNote = max(minMidiNote, b1MidiNote)
+
+        // Generate frequencies for each semitone
+        // frequency = 440 * 2^((midiNote - 69) / 12)
+        var frequencies: [Double] = []
+        for midiNote in minMidiNote...maxMidiNote {
+            let frequency = 440.0 * pow(2.0, Double(midiNote - 69) / 12.0)
+            frequencies.append(frequency)
+        }
+
+        return frequencies
+    }
+
     // MARK: - Auto-Follow Scrolling
 
     /// Update vertical scroll to keep the target pitch frequency in view
@@ -683,6 +714,20 @@ struct PitchAnalysisView: View {
             viewportWidth: viewportWidth,
             viewportHeight: viewportHeight,
             canvasOffsetX: scrollManager.canvasOffsetX
+        )
+
+        // Draw target note labels at right edge (fixed X, scrolling Y)
+        // Shows all semitones from lowest to highest pitch in the recording
+        let targetFrequencies = calculateSemitoneFrequencies(from: data)
+        let highlightedFrequency = currentPitchFrequency(at: currentTime)
+        renderer.drawTargetNoteLabels(
+            context: context,
+            canvasHeight: canvasHeight,
+            viewportWidth: viewportWidth,
+            viewportHeight: viewportHeight,
+            paperTop: scrollManager.paperTop,
+            targetFrequencies: targetFrequencies,
+            highlightedFrequency: highlightedFrequency
         )
 
         // Draw playback position line (fully fixed)
