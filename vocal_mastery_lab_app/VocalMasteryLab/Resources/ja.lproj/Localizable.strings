@@ -353,6 +353,25 @@
 "statistics.sf_intensity" = "強度差";
 "statistics.sf_no_data" = "データなし";
 
+// Intonation Statistics
+"statistics.intonation" = "音程精度";
+"statistics.accuracy_rate" = "正確率 (±20¢)";
+"statistics.excellent_accuracy" = "高精度率 (±10¢)";
+
+// Pitch Stability Statistics
+"statistics.pitch_stability" = "ピッチ安定性";
+"statistics.avg_fluctuation" = "平均揺らぎ";
+"statistics.stability_rate" = "安定率";
+"statistics.segments_analyzed" = "分析セグメント数";
+"statistics.stability_no_data" = "持続音データ不足";
+
+// Vocal Range Statistics
+"statistics.range" = "音域";
+"statistics.range_semitones" = "音域幅";
+"statistics.semitones" = "半音";
+"statistics.center_note" = "中心音";
+"statistics.most_used_note" = "最頻出音";
+
 // MARK: - DebugMenuView
 "debug.paywall" = "プレミアムプラン (Paywall)";
 "debug.subscription_management" = "サブスクリプション管理";

@@ -66,8 +66,31 @@ public final class RecordingStatisticsCalculator {
 
         guard !pitchData.timeStamps.isEmpty else { return nil }
 
-        // Calculate overall statistics
-        let overallStats = calculateOverallStatistics(pitchData: pitchData)
+        // Extract valid frequencies with timestamps
+        var validSamples: [(time: Double, frequency: Double)] = []
+        for (index, time) in pitchData.timeStamps.enumerated() {
+            let confidence = pitchData.confidences[index]
+            guard confidence >= minConfidence else { continue }
+
+            let frequency = Double(pitchData.frequencies[index])
+            if frequency > 50 && frequency < 2000 {
+                validSamples.append((time, frequency))
+            }
+        }
+
+        guard !validSamples.isEmpty else { return nil }
+
+        // Calculate detection rate
+        let detectionRate = Double(validSamples.count) / Double(pitchData.timeStamps.count)
+
+        // Calculate intonation statistics (deviation from nearest semitone)
+        let intonationStats = calculateIntonationStatistics(validSamples: validSamples)
+
+        // Calculate pitch stability statistics
+        let pitchStabilityStats = calculatePitchStabilityStatistics(validSamples: validSamples)
+
+        // Calculate vocal range statistics
+        let vocalRangeStats = calculateVocalRangeStatistics(validSamples: validSamples)
 
         // Calculate vibrato statistics
         let vibratoStats = calculateVibratoStatistics(pitchData: pitchData)
@@ -82,45 +105,173 @@ public final class RecordingStatisticsCalculator {
         let hfStats = calculateHighFrequencyStatistics(spectrogramData: spectrogramData)
 
         return RecordingStatistics(
-            overall: overallStats,
-            positionStatistics: [],
-            pitchStatistics: [],
+            intonation: intonationStats,
+            pitchStability: pitchStabilityStats,
+            vocalRange: vocalRangeStats,
             vibratoStatistics: vibratoStats,
             singersFormantStatistics: sfStats,
             highFrequencyStatistics: hfStats,
-            totalDuration: totalDuration
+            totalDuration: totalDuration,
+            detectionRate: detectionRate
         )
     }
 
     // MARK: - Private Methods
 
-    private func calculateOverallStatistics(
-        pitchData: PitchAnalysisData
-    ) -> RecordingStatistics.OverallStatistics {
-        var validFrequencies: [Double] = []
+    /// Calculate deviation from nearest semitone in cents
+    private func deviationFromNearestSemitone(frequency: Double) -> Double {
+        // Convert frequency to MIDI note number (continuous)
+        // MIDI note = 12 * log2(freq / 440) + 69
+        let midiNote = 12.0 * log2(frequency / 440.0) + 69.0
+        let nearestSemitone = round(midiNote)
+        // Deviation in cents (100 cents = 1 semitone)
+        return (midiNote - nearestSemitone) * 100.0
+    }
 
-        for (index, _) in pitchData.timeStamps.enumerated() {
-            let confidence = pitchData.confidences[index]
-            guard confidence >= minConfidence else { continue }
+    /// Calculate intonation statistics (deviation from nearest semitone)
+    private func calculateIntonationStatistics(
+        validSamples: [(time: Double, frequency: Double)]
+    ) -> RecordingStatistics.IntonationStatistics {
+        let deviations = validSamples.map { abs(deviationFromNearestSemitone(frequency: $0.frequency)) }
 
-            let frequency = Double(pitchData.frequencies[index])
+        let averageDeviation = deviations.reduce(0, +) / Double(deviations.count)
 
-            // Track all valid frequencies for range
-            if frequency > 50 && frequency < 2000 {
-                validFrequencies.append(frequency)
+        // Standard deviation
+        let variance = deviations.map { pow($0 - averageDeviation, 2) }.reduce(0, +) / Double(deviations.count)
+        let stdDev = sqrt(variance)
+
+        // Accuracy rate (within ±20 cents)
+        let accurateCount = deviations.filter { $0 <= 20 }.count
+        let accuracyRate = Double(accurateCount) / Double(deviations.count)
+
+        // Excellent accuracy rate (within ±10 cents)
+        let excellentCount = deviations.filter { $0 <= 10 }.count
+        let excellentAccuracyRate = Double(excellentCount) / Double(deviations.count)
+
+        return RecordingStatistics.IntonationStatistics(
+            averageDeviationCents: averageDeviation,
+            deviationStdDev: stdDev,
+            accuracyRate: accuracyRate,
+            excellentAccuracyRate: excellentAccuracyRate
+        )
+    }
+
+    /// Calculate pitch stability statistics
+    private func calculatePitchStabilityStatistics(
+        validSamples: [(time: Double, frequency: Double)]
+    ) -> RecordingStatistics.PitchStabilityStatistics {
+        guard validSamples.count >= 3 else {
+            return RecordingStatistics.PitchStabilityStatistics(
+                averageFluctuation: 0,
+                stabilityRate: 1.0,
+                segmentsAnalyzed: 0
+            )
+        }
+
+        // Detect sustained note segments (consecutive samples on same semitone)
+        var segments: [[Double]] = []
+        var currentSegment: [Double] = []
+        var currentSemitone: Int?
+
+        for sample in validSamples {
+            let midiNote = 12.0 * log2(sample.frequency / 440.0) + 69.0
+            let semitone = Int(round(midiNote))
+
+            if let lastSemitone = currentSemitone, semitone == lastSemitone {
+                // Same semitone, add to current segment
+                currentSegment.append(sample.frequency)
+            } else {
+                // New semitone, save previous segment if valid
+                if currentSegment.count >= 5 {
+                    segments.append(currentSegment)
+                }
+                currentSegment = [sample.frequency]
+                currentSemitone = semitone
+            }
+        }
+        // Don't forget the last segment
+        if currentSegment.count >= 5 {
+            segments.append(currentSegment)
+        }
+
+        guard !segments.isEmpty else {
+            return RecordingStatistics.PitchStabilityStatistics(
+                averageFluctuation: 0,
+                stabilityRate: 1.0,
+                segmentsAnalyzed: 0
+            )
+        }
+
+        // Calculate fluctuation for each segment
+        var segmentFluctuations: [Double] = []
+        var stableSegmentCount = 0
+
+        for segment in segments {
+            // Calculate standard deviation in cents for this segment
+            let meanFreq = segment.reduce(0, +) / Double(segment.count)
+            let deviationsInCents = segment.map { 1200.0 * log2($0 / meanFreq) }
+            let variance = deviationsInCents.map { $0 * $0 }.reduce(0, +) / Double(segment.count)
+            let fluctuation = sqrt(variance)
+
+            segmentFluctuations.append(fluctuation)
+
+            // Stable if fluctuation < 15 cents
+            if fluctuation < 15 {
+                stableSegmentCount += 1
             }
         }
 
-        let totalSamples = validFrequencies.count
+        let averageFluctuation = segmentFluctuations.reduce(0, +) / Double(segmentFluctuations.count)
+        let stabilityRate = Double(stableSegmentCount) / Double(segments.count)
 
-        return RecordingStatistics.OverallStatistics(
-            averageDeviationCents: 0, // No target to compare against
-            deviationStdDev: 0,
-            medianDeviationCents: 0,
-            detectionRate: totalSamples > 0 ? 1.0 : 0,
-            totalSamples: totalSamples,
-            lowestFrequency: validFrequencies.min(),
-            highestFrequency: validFrequencies.max()
+        return RecordingStatistics.PitchStabilityStatistics(
+            averageFluctuation: averageFluctuation,
+            stabilityRate: stabilityRate,
+            segmentsAnalyzed: segments.count
+        )
+    }
+
+    /// Calculate vocal range statistics
+    private func calculateVocalRangeStatistics(
+        validSamples: [(time: Double, frequency: Double)]
+    ) -> RecordingStatistics.VocalRangeStatistics {
+        let frequencies = validSamples.map { $0.frequency }
+
+        let lowestFreq = frequencies.min()
+        let highestFreq = frequencies.max()
+
+        // Calculate range in semitones
+        var rangeSemitones = 0
+        if let low = lowestFreq, let high = highestFreq, low > 0 {
+            rangeSemitones = Int(round(12.0 * log2(high / low)))
+        }
+
+        // Calculate center frequency (geometric mean)
+        let logSum = frequencies.map { log($0) }.reduce(0, +)
+        let centerFreq = exp(logSum / Double(frequencies.count))
+
+        // Find most used note
+        var noteCount: [Int: Int] = [:]  // MIDI note number -> count
+        for freq in frequencies {
+            let midiNote = Int(round(12.0 * log2(freq / 440.0) + 69.0))
+            noteCount[midiNote, default: 0] += 1
+        }
+
+        let mostUsedMidi = noteCount.max(by: { $0.value < $1.value })?.key
+        var mostUsedNote: String?
+        if let midi = mostUsedMidi {
+            let noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+            let noteName = noteNames[midi % 12]
+            let octave = (midi / 12) - 1
+            mostUsedNote = "\(noteName)\(octave)"
+        }
+
+        return RecordingStatistics.VocalRangeStatistics(
+            lowestFrequency: lowestFreq,
+            highestFrequency: highestFreq,
+            rangeSemitones: rangeSemitones,
+            centerFrequency: centerFreq,
+            mostUsedNote: mostUsedNote
         )
     }
 

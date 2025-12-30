@@ -18,8 +18,9 @@ struct StatisticsSheetView: View {
 
     // Pitch Analysis section states
     @State private var isPitchAnalysisSectionExpanded: Bool = true
-    @State private var isPositionSectionExpanded: Bool = false
-    @State private var isPitchSectionExpanded: Bool = false
+    @State private var isIntonationExpanded: Bool = false
+    @State private var isPitchStabilityExpanded: Bool = false
+    @State private var isVocalRangeExpanded: Bool = false
     @State private var isVibratoSectionExpanded: Bool = false
 
     // Spectrum Analysis section states
@@ -87,18 +88,14 @@ struct StatisticsSheetView: View {
 
             if isPitchAnalysisSectionExpanded {
                 VStack(spacing: 12) {
-                    // Overall subsection (always expanded within pitch analysis)
-                    overallSubsection(stats.overall)
+                    // Intonation subsection
+                    intonationSubsection(stats.intonation)
 
-                    // Position subsection (collapsible)
-                    if !stats.positionStatistics.isEmpty {
-                        positionSection(stats.positionStatistics)
-                    }
+                    // Pitch Stability subsection
+                    pitchStabilitySubsection(stats.pitchStability)
 
-                    // Pitch subsection (collapsible)
-                    if !stats.pitchStatistics.isEmpty {
-                        pitchSection(stats.pitchStatistics)
-                    }
+                    // Vocal Range subsection
+                    vocalRangeSubsection(stats.vocalRange, detectionRate: stats.detectionRate)
 
                     // Vibrato subsection (collapsible)
                     vibratoSection(stats.vibratoStatistics)
@@ -154,45 +151,242 @@ struct StatisticsSheetView: View {
         .accessibilityIdentifier("SpectrumAnalysisSection")
     }
 
-    // MARK: - Overall Subsection (within Pitch Analysis)
+    // MARK: - Intonation Subsection (Collapsible)
 
-    private func overallSubsection(_ overall: RecordingStatistics.OverallStatistics) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("statistics.overall".localized)
-                .font(.headline)
-                .foregroundColor(ColorPalette.text)
+    private func intonationSubsection(_ intonation: RecordingStatistics.IntonationStatistics) -> some View {
+        VStack(spacing: 0) {
+            // Header with expand/collapse
+            Button(action: { withAnimation { isIntonationExpanded.toggle() } }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "tuningfork")
+                            .foregroundColor(ColorPalette.primary)
+                        Text("statistics.intonation".localized)
+                            .font(.headline)
+                            .foregroundColor(ColorPalette.text)
 
-            VStack(spacing: 8) {
-                StatisticsRow(
-                    label: "statistics.avg_deviation".localized,
-                    value: formatCents(overall.averageDeviationCents)
-                )
-                StatisticsRow(
-                    label: "statistics.deviation_stddev".localized,
-                    value: "±" + formatCents(overall.deviationStdDev)
-                )
-                StatisticsRow(
-                    label: "statistics.median_deviation".localized,
-                    value: formatCents(overall.medianDeviationCents)
-                )
-                StatisticsRow(
-                    label: "statistics.detection_rate".localized,
-                    value: formatPercent(overall.detectionRate)
-                )
+                        Spacer()
 
-                // Vocal range
-                if let lowest = overall.lowestNoteName, let highest = overall.highestNoteName {
+                        Image(systemName: isIntonationExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundColor(ColorPalette.text.opacity(0.5))
+                    }
+
+                    if !isIntonationExpanded {
+                        Text(intonationSummaryText(intonation))
+                            .font(.caption)
+                            .foregroundColor(ColorPalette.text.opacity(0.6))
+                            .padding(.leading, 28)
+                    }
+                }
+                .padding()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("IntonationSectionToggleButton")
+
+            // Expandable content
+            if isIntonationExpanded {
+                VStack(spacing: 8) {
                     StatisticsRow(
-                        label: "statistics.vocal_range".localized,
-                        value: "\(lowest) 〜 \(highest)"
+                        label: "statistics.avg_deviation".localized,
+                        value: formatCents(intonation.averageDeviationCents),
+                        color: deviationColor(intonation.averageDeviationCents)
                     )
+                    StatisticsRow(
+                        label: "statistics.deviation_stddev".localized,
+                        value: "±" + formatCents(intonation.deviationStdDev)
+                    )
+                    StatisticsRow(
+                        label: "statistics.accuracy_rate".localized,
+                        value: formatPercent(intonation.accuracyRate),
+                        color: accuracyColor(intonation.accuracyRate)
+                    )
+                    StatisticsRow(
+                        label: "statistics.excellent_accuracy".localized,
+                        value: formatPercent(intonation.excellentAccuracyRate),
+                        color: accuracyColor(intonation.excellentAccuracyRate)
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.bottom)
+            }
+        }
+        .background(ColorPalette.background.opacity(0.5))
+        .cornerRadius(8)
+        .accessibilityIdentifier("IntonationSubsection")
+    }
+
+    private func intonationSummaryText(_ intonation: RecordingStatistics.IntonationStatistics) -> String {
+        // Format: "正確率: 85%（平均 12.5 cents）"
+        let accuracyPercent = String(format: "%.0f%%", intonation.accuracyRate * 100)
+        let avgDeviation = String(format: "%.1f", intonation.averageDeviationCents)
+        return "statistics.accuracy_rate".localized + ": " + accuracyPercent + "（" + avgDeviation + " " + "statistics.cents".localized + "）"
+    }
+
+    // MARK: - Pitch Stability Subsection (Collapsible)
+
+    private func pitchStabilitySubsection(_ stability: RecordingStatistics.PitchStabilityStatistics) -> some View {
+        VStack(spacing: 0) {
+            // Header with expand/collapse
+            Button(action: { withAnimation { isPitchStabilityExpanded.toggle() } }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "waveform.path")
+                            .foregroundColor(ColorPalette.primary)
+                        Text("statistics.pitch_stability".localized)
+                            .font(.headline)
+                            .foregroundColor(ColorPalette.text)
+
+                        Spacer()
+
+                        Image(systemName: isPitchStabilityExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundColor(ColorPalette.text.opacity(0.5))
+                    }
+
+                    if !isPitchStabilityExpanded {
+                        Text(pitchStabilitySummaryText(stability))
+                            .font(.caption)
+                            .foregroundColor(ColorPalette.text.opacity(0.6))
+                            .padding(.leading, 28)
+                    }
+                }
+                .padding()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("PitchStabilitySectionToggleButton")
+
+            // Expandable content
+            if isPitchStabilityExpanded {
+                if stability.segmentsAnalyzed > 0 {
+                    VStack(spacing: 8) {
+                        StatisticsRow(
+                            label: "statistics.avg_fluctuation".localized,
+                            value: formatCents(stability.averageFluctuation),
+                            color: fluctuationColor(stability.averageFluctuation)
+                        )
+                        StatisticsRow(
+                            label: "statistics.stability_rate".localized,
+                            value: formatPercent(stability.stabilityRate),
+                            color: accuracyColor(stability.stabilityRate)
+                        )
+                        StatisticsRow(
+                            label: "statistics.segments_analyzed".localized,
+                            value: "\(stability.segmentsAnalyzed)"
+                        )
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                } else {
+                    HStack {
+                        Text("statistics.stability_no_data".localized)
+                            .font(.subheadline)
+                            .foregroundColor(ColorPalette.text.opacity(0.5))
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
                 }
             }
         }
-        .padding()
         .background(ColorPalette.background.opacity(0.5))
         .cornerRadius(8)
-        .accessibilityIdentifier("OverallSubsection")
+        .accessibilityIdentifier("PitchStabilitySubsection")
+    }
+
+    private func pitchStabilitySummaryText(_ stability: RecordingStatistics.PitchStabilityStatistics) -> String {
+        guard stability.segmentsAnalyzed > 0 else {
+            return "statistics.stability_no_data".localized
+        }
+        // Format: "安定率: 75%（揺らぎ 8.5 cents）"
+        let stabilityPercent = String(format: "%.0f%%", stability.stabilityRate * 100)
+        let fluctuation = String(format: "%.1f", stability.averageFluctuation)
+        return "statistics.stability_rate".localized + ": " + stabilityPercent + "（" + fluctuation + " " + "statistics.cents".localized + "）"
+    }
+
+    // MARK: - Vocal Range Subsection (Collapsible)
+
+    private func vocalRangeSubsection(_ range: RecordingStatistics.VocalRangeStatistics, detectionRate: Double) -> some View {
+        VStack(spacing: 0) {
+            // Header with expand/collapse
+            Button(action: { withAnimation { isVocalRangeExpanded.toggle() } }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "music.note.list")
+                            .foregroundColor(ColorPalette.primary)
+                        Text("statistics.vocal_range".localized)
+                            .font(.headline)
+                            .foregroundColor(ColorPalette.text)
+
+                        Spacer()
+
+                        Image(systemName: isVocalRangeExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundColor(ColorPalette.text.opacity(0.5))
+                    }
+
+                    if !isVocalRangeExpanded {
+                        Text(vocalRangeSummaryText(range))
+                            .font(.caption)
+                            .foregroundColor(ColorPalette.text.opacity(0.6))
+                            .padding(.leading, 28)
+                    }
+                }
+                .padding()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("VocalRangeSectionToggleButton")
+
+            // Expandable content
+            if isVocalRangeExpanded {
+                VStack(spacing: 8) {
+                    // Vocal range
+                    if let lowest = range.lowestNoteName, let highest = range.highestNoteName {
+                        StatisticsRow(
+                            label: "statistics.range".localized,
+                            value: "\(lowest) 〜 \(highest)"
+                        )
+                    }
+
+                    StatisticsRow(
+                        label: "statistics.range_semitones".localized,
+                        value: "\(range.rangeSemitones) " + "statistics.semitones".localized
+                    )
+
+                    if let center = range.centerNoteName {
+                        StatisticsRow(
+                            label: "statistics.center_note".localized,
+                            value: center
+                        )
+                    }
+
+                    if let mostUsed = range.mostUsedNote {
+                        StatisticsRow(
+                            label: "statistics.most_used_note".localized,
+                            value: mostUsed
+                        )
+                    }
+
+                    StatisticsRow(
+                        label: "statistics.detection_rate".localized,
+                        value: formatPercent(detectionRate)
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.bottom)
+            }
+        }
+        .background(ColorPalette.background.opacity(0.5))
+        .cornerRadius(8)
+        .accessibilityIdentifier("VocalRangeSubsection")
+    }
+
+    private func vocalRangeSummaryText(_ range: RecordingStatistics.VocalRangeStatistics) -> String {
+        // Format: "C3 〜 G4（16半音）"
+        if let lowest = range.lowestNoteName, let highest = range.highestNoteName {
+            return "\(lowest) 〜 \(highest)（\(range.rangeSemitones) " + "statistics.semitones".localized + "）"
+        }
+        return "\(range.rangeSemitones) " + "statistics.semitones".localized
     }
 
     // MARK: - High Frequency Resonance Subsection
@@ -246,184 +440,6 @@ struct StatisticsSheetView: View {
         .background(ColorPalette.background.opacity(0.5))
         .cornerRadius(8)
         .accessibilityIdentifier("HighFreqResonanceSubsection")
-    }
-
-    // MARK: - Position Subsection
-
-    private func positionSection(_ positions: [RecordingStatistics.PositionStatistics]) -> some View {
-        VStack(spacing: 0) {
-            // Header with expand/collapse
-            Button(action: { withAnimation { isPositionSectionExpanded.toggle() } }) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "list.number")
-                            .foregroundColor(ColorPalette.primary)
-                        Text("statistics.by_position".localized)
-                            .font(.headline)
-                            .foregroundColor(ColorPalette.text)
-
-                        Spacer()
-
-                        Image(systemName: isPositionSectionExpanded ? "chevron.up" : "chevron.down")
-                            .foregroundColor(ColorPalette.text.opacity(0.5))
-                    }
-
-                    if !isPositionSectionExpanded {
-                        Text(positionSummaryText(positions))
-                            .font(.caption)
-                            .foregroundColor(ColorPalette.text.opacity(0.6))
-                            .padding(.leading, 28) // Align with title (icon width + spacing)
-                    }
-                }
-                .padding()
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("PositionSectionToggleButton")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("statistics.by_position".localized)
-
-            // Expandable content
-            if isPositionSectionExpanded {
-                VStack(spacing: 8) {
-                    ForEach(positions) { position in
-                        VStack(spacing: 4) {
-                            HStack {
-                                Text("\(position.position)" + "statistics.position_suffix".localized)
-                                    .font(.subheadline)
-                                    .foregroundColor(ColorPalette.text)
-                                    .frame(width: 50, alignment: .leading)
-                                    .accessibilityIdentifier("PositionLabel_\(position.position)")
-
-                                Spacer()
-
-                                Text(formatSignedCents(position.averageDeviationCents))
-                                    .font(.subheadline.monospacedDigit())
-                                    .foregroundColor(deviationColor(abs(position.averageDeviationCents)))
-
-                                Text("±" + formatCents(position.deviationStdDev))
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(ColorPalette.text.opacity(0.6))
-                                    .frame(width: 70, alignment: .trailing)
-                            }
-
-                            // Deviation bar
-                            DeviationBarView(
-                                deviation: position.averageDeviationCents,
-                                maxDeviation: 100.0  // 100 cents = 1 semitone for full range visibility
-                            )
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 4)
-                        .accessibilityIdentifier("PositionRow_\(position.position)")
-
-                        if position.id != positions.last?.id {
-                            Divider()
-                                .background(ColorPalette.text.opacity(0.1))
-                                .padding(.horizontal)
-                        }
-                    }
-                }
-                .padding(.bottom)
-                .accessibilityIdentifier("PositionSectionContent")
-            }
-        }
-        .background(ColorPalette.background.opacity(0.5))
-        .cornerRadius(8)
-    }
-
-    // MARK: - Pitch Subsection
-
-    private func pitchSection(_ pitches: [RecordingStatistics.PitchStatistics]) -> some View {
-        // Sort by absolute deviation descending (worst accuracy first)
-        let sortedPitches = pitches.sorted { abs($0.averageDeviationCents) > abs($1.averageDeviationCents) }
-
-        return VStack(spacing: 0) {
-            // Header with expand/collapse
-            Button(action: { withAnimation { isPitchSectionExpanded.toggle() } }) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "music.note")
-                            .foregroundColor(ColorPalette.primary)
-                        Text("statistics.by_pitch".localized)
-                            .font(.headline)
-                            .foregroundColor(ColorPalette.text)
-
-                        Spacer()
-
-                        Image(systemName: isPitchSectionExpanded ? "chevron.up" : "chevron.down")
-                            .foregroundColor(ColorPalette.text.opacity(0.5))
-                    }
-
-                    if !isPitchSectionExpanded {
-                        Text(pitchSummaryText(sortedPitches))
-                            .font(.caption)
-                            .foregroundColor(ColorPalette.text.opacity(0.6))
-                            .padding(.leading, 28) // Align with title (icon width + spacing)
-                    }
-                }
-                .padding()
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("PitchSectionToggleButton")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("statistics.by_pitch".localized)
-
-            // Expandable content
-            if isPitchSectionExpanded {
-                VStack(spacing: 6) {
-                    ForEach(Array(sortedPitches.enumerated()), id: \.element.id) { index, pitch in
-                        VStack(spacing: 4) {
-                            HStack {
-                                Text(pitch.noteName)
-                                    .font(.subheadline.monospaced())
-                                    .foregroundColor(ColorPalette.text)
-                                    .frame(width: 45, alignment: .leading)
-                                    .accessibilityIdentifier("PitchNoteLabel_\(pitch.noteName)")
-
-                                Spacer()
-
-                                Text(formatSignedCents(pitch.averageDeviationCents))
-                                    .font(.subheadline.monospacedDigit())
-                                    .foregroundColor(deviationColor(abs(pitch.averageDeviationCents)))
-
-                                Text("±" + formatCents(pitch.deviationStdDev))
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(ColorPalette.text.opacity(0.6))
-                                    .frame(width: 70, alignment: .trailing)
-
-                                Text("\(pitch.occurrenceCount)" + "statistics.times".localized)
-                                    .font(.caption)
-                                    .foregroundColor(ColorPalette.text.opacity(0.5))
-                                    .frame(width: 35, alignment: .trailing)
-                            }
-
-                            // Deviation bar
-                            DeviationBarView(
-                                deviation: pitch.averageDeviationCents,
-                                maxDeviation: 100.0  // 100 cents = 1 semitone for full range visibility
-                            )
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 4)
-                        .accessibilityIdentifier("PitchRow_\(pitch.noteName)")
-
-                        if index != sortedPitches.count - 1 {
-                            Divider()
-                                .background(ColorPalette.text.opacity(0.1))
-                                .padding(.horizontal)
-                        }
-                    }
-                }
-                .padding(.bottom)
-                .accessibilityIdentifier("PitchSectionContent")
-            }
-        }
-        .background(ColorPalette.background.opacity(0.5))
-        .cornerRadius(8)
     }
 
     // MARK: - Vibrato Subsection
@@ -557,21 +573,38 @@ struct StatisticsSheetView: View {
         return String(format: "%.0f%%", value * 100)
     }
 
-    private func positionSummaryText(_ positions: [RecordingStatistics.PositionStatistics]) -> String {
-        guard !positions.isEmpty else { return "" }
-        // Sort by absolute deviation to find the worst position
-        let sortedByDeviation = positions.sorted { abs($0.averageDeviationCents) > abs($1.averageDeviationCents) }
-        let worstDeviation = abs(sortedByDeviation.first!.averageDeviationCents)
-        // Format: "16ポジション（46 cents）"
-        return "\(positions.count)" + "statistics.positions".localized + "（" + String(format: "%.0f", worstDeviation) + " " + "statistics.cents".localized + "）"
+    /// Returns color based on accuracy rate (higher is better)
+    /// - Green: >= 80% (excellent)
+    /// - Yellow: 60-80% (good)
+    /// - Orange: 40-60% (needs work)
+    /// - Red: < 40% (poor)
+    private func accuracyColor(_ rate: Double) -> Color {
+        if rate >= 0.8 {
+            return .green
+        } else if rate >= 0.6 {
+            return .yellow
+        } else if rate >= 0.4 {
+            return .orange
+        } else {
+            return .red
+        }
     }
 
-    private func pitchSummaryText(_ pitches: [RecordingStatistics.PitchStatistics]) -> String {
-        guard !pitches.isEmpty else { return "" }
-        // pitches are already sorted by deviation (worst first)
-        let worstDeviation = abs(pitches.first!.averageDeviationCents)
-        // Format: "8 notes（46 cents）"
-        return "\(pitches.count)" + "statistics.notes_detected".localized + "（" + String(format: "%.0f", worstDeviation) + " " + "statistics.cents".localized + "）"
+    /// Returns color based on fluctuation in cents (lower is better)
+    /// - Green: < 10 cents (excellent stability)
+    /// - Yellow: 10-20 cents (good stability)
+    /// - Orange: 20-30 cents (moderate instability)
+    /// - Red: > 30 cents (significant wavering)
+    private func fluctuationColor(_ fluctuation: Double) -> Color {
+        if fluctuation < 10 {
+            return .green
+        } else if fluctuation < 20 {
+            return .yellow
+        } else if fluctuation < 30 {
+            return .orange
+        } else {
+            return .red
+        }
     }
 
     /// Returns color based on deviation magnitude

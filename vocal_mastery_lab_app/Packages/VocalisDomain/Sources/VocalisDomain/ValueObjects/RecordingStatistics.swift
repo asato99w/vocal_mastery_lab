@@ -3,14 +3,14 @@ import Foundation
 /// Objective statistics calculated from pitch analysis data
 /// All values are raw measurements without subjective scoring
 public struct RecordingStatistics: Equatable {
-    /// Overall statistics across all notes
-    public let overall: OverallStatistics
+    /// Intonation statistics (deviation from nearest semitone)
+    public let intonation: IntonationStatistics
 
-    /// Per-position statistics (position within scale pattern)
-    public let positionStatistics: [PositionStatistics]
+    /// Pitch stability statistics (wavering within sustained notes)
+    public let pitchStability: PitchStabilityStatistics
 
-    /// Per-pitch statistics (actual note frequencies)
-    public let pitchStatistics: [PitchStatistics]
+    /// Vocal range statistics (extended range info)
+    public let vocalRange: VocalRangeStatistics
 
     /// Vibrato statistics (optional, nil if not enough data)
     public let vibratoStatistics: VibratoStatistics?
@@ -24,22 +24,133 @@ public struct RecordingStatistics: Equatable {
     /// Total recording duration
     public let totalDuration: TimeInterval
 
+    /// Pitch detection rate (percentage of time with valid pitch)
+    public let detectionRate: Double
+
     public init(
-        overall: OverallStatistics,
-        positionStatistics: [PositionStatistics],
-        pitchStatistics: [PitchStatistics],
+        intonation: IntonationStatistics,
+        pitchStability: PitchStabilityStatistics,
+        vocalRange: VocalRangeStatistics,
         vibratoStatistics: VibratoStatistics? = nil,
         singersFormantStatistics: SingersFormantStatistics? = nil,
         highFrequencyStatistics: HighFrequencyStatistics? = nil,
-        totalDuration: TimeInterval
+        totalDuration: TimeInterval,
+        detectionRate: Double
     ) {
-        self.overall = overall
-        self.positionStatistics = positionStatistics
-        self.pitchStatistics = pitchStatistics
+        self.intonation = intonation
+        self.pitchStability = pitchStability
+        self.vocalRange = vocalRange
         self.vibratoStatistics = vibratoStatistics
         self.singersFormantStatistics = singersFormantStatistics
         self.highFrequencyStatistics = highFrequencyStatistics
         self.totalDuration = totalDuration
+        self.detectionRate = detectionRate
+    }
+
+    // MARK: - Intonation Statistics (deviation from nearest semitone)
+
+    public struct IntonationStatistics: Equatable {
+        /// Average deviation from nearest semitone in cents (absolute value)
+        /// Lower is better. Typical range: 5-30 cents
+        public let averageDeviationCents: Double
+
+        /// Standard deviation of intonation deviation
+        public let deviationStdDev: Double
+
+        /// Percentage of samples within ±20 cents of nearest semitone
+        /// Higher is better. Typical range: 60-95%
+        public let accuracyRate: Double
+
+        /// Percentage of samples within ±10 cents (excellent accuracy)
+        public let excellentAccuracyRate: Double
+
+        public init(
+            averageDeviationCents: Double,
+            deviationStdDev: Double,
+            accuracyRate: Double,
+            excellentAccuracyRate: Double
+        ) {
+            self.averageDeviationCents = averageDeviationCents
+            self.deviationStdDev = deviationStdDev
+            self.accuracyRate = accuracyRate
+            self.excellentAccuracyRate = excellentAccuracyRate
+        }
+    }
+
+    // MARK: - Pitch Stability Statistics
+
+    public struct PitchStabilityStatistics: Equatable {
+        /// Average pitch fluctuation within sustained notes (cents)
+        /// Lower is better. Typical range: 5-25 cents
+        public let averageFluctuation: Double
+
+        /// Percentage of time with stable pitch (fluctuation < 15 cents)
+        /// Higher is better
+        public let stabilityRate: Double
+
+        /// Number of sustained note segments analyzed
+        public let segmentsAnalyzed: Int
+
+        public init(
+            averageFluctuation: Double,
+            stabilityRate: Double,
+            segmentsAnalyzed: Int
+        ) {
+            self.averageFluctuation = averageFluctuation
+            self.stabilityRate = stabilityRate
+            self.segmentsAnalyzed = segmentsAnalyzed
+        }
+    }
+
+    // MARK: - Vocal Range Statistics
+
+    public struct VocalRangeStatistics: Equatable {
+        /// Lowest detected frequency (Hz)
+        public let lowestFrequency: Double?
+
+        /// Highest detected frequency (Hz)
+        public let highestFrequency: Double?
+
+        /// Total range in semitones
+        public let rangeSemitones: Int
+
+        /// Center frequency (geometric mean of used frequencies)
+        public let centerFrequency: Double?
+
+        /// Most frequently used note name (mode)
+        public let mostUsedNote: String?
+
+        /// Lowest detected note name (e.g., "C3")
+        public var lowestNoteName: String? {
+            guard let freq = lowestFrequency else { return nil }
+            return MIDINote.noteName(forFrequency: freq)
+        }
+
+        /// Highest detected note name (e.g., "G4")
+        public var highestNoteName: String? {
+            guard let freq = highestFrequency else { return nil }
+            return MIDINote.noteName(forFrequency: freq)
+        }
+
+        /// Center note name
+        public var centerNoteName: String? {
+            guard let freq = centerFrequency else { return nil }
+            return MIDINote.noteName(forFrequency: freq)
+        }
+
+        public init(
+            lowestFrequency: Double?,
+            highestFrequency: Double?,
+            rangeSemitones: Int,
+            centerFrequency: Double?,
+            mostUsedNote: String?
+        ) {
+            self.lowestFrequency = lowestFrequency
+            self.highestFrequency = highestFrequency
+            self.rangeSemitones = rangeSemitones
+            self.centerFrequency = centerFrequency
+            self.mostUsedNote = mostUsedNote
+        }
     }
 
     // MARK: - Vibrato Statistics
@@ -133,136 +244,6 @@ public struct RecordingStatistics: Equatable {
         public init(brightnessRatio: Float, airinessRatio: Float) {
             self.brightnessRatio = brightnessRatio
             self.airinessRatio = airinessRatio
-        }
-    }
-
-    // MARK: - Overall Statistics
-
-    public struct OverallStatistics: Equatable {
-        /// Average pitch deviation in cents (absolute value)
-        public let averageDeviationCents: Double
-
-        /// Standard deviation of pitch deviation in cents
-        public let deviationStdDev: Double
-
-        /// Median pitch deviation in cents (absolute value)
-        public let medianDeviationCents: Double
-
-        /// Detection rate: percentage of samples with valid pitch during target notes
-        public let detectionRate: Double
-
-        /// Total number of valid pitch samples
-        public let totalSamples: Int
-
-        /// Detected vocal range - lowest frequency
-        public let lowestFrequency: Double?
-
-        /// Detected vocal range - highest frequency
-        public let highestFrequency: Double?
-
-        /// Lowest detected note name (e.g., "C3")
-        public var lowestNoteName: String? {
-            guard let freq = lowestFrequency else { return nil }
-            return MIDINote.noteName(forFrequency: freq)
-        }
-
-        /// Highest detected note name (e.g., "G4")
-        public var highestNoteName: String? {
-            guard let freq = highestFrequency else { return nil }
-            return MIDINote.noteName(forFrequency: freq)
-        }
-
-        public init(
-            averageDeviationCents: Double,
-            deviationStdDev: Double,
-            medianDeviationCents: Double,
-            detectionRate: Double,
-            totalSamples: Int,
-            lowestFrequency: Double?,
-            highestFrequency: Double?
-        ) {
-            self.averageDeviationCents = averageDeviationCents
-            self.deviationStdDev = deviationStdDev
-            self.medianDeviationCents = medianDeviationCents
-            self.detectionRate = detectionRate
-            self.totalSamples = totalSamples
-            self.lowestFrequency = lowestFrequency
-            self.highestFrequency = highestFrequency
-        }
-    }
-
-    // MARK: - Position Statistics (within scale pattern)
-
-    public struct PositionStatistics: Equatable, Identifiable {
-        public var id: Int { position }
-
-        /// Position in scale (1 = first note, 2 = second, etc.)
-        public let position: Int
-
-        /// Average deviation in cents (signed: + = sharp, - = flat)
-        public let averageDeviationCents: Double
-
-        /// Standard deviation of pitch deviation
-        public let deviationStdDev: Double
-
-        /// Number of samples for this position
-        public let sampleCount: Int
-
-        public init(
-            position: Int,
-            averageDeviationCents: Double,
-            deviationStdDev: Double,
-            sampleCount: Int
-        ) {
-            self.position = position
-            self.averageDeviationCents = averageDeviationCents
-            self.deviationStdDev = deviationStdDev
-            self.sampleCount = sampleCount
-        }
-    }
-
-    // MARK: - Pitch Statistics (actual note frequencies)
-
-    public struct PitchStatistics: Equatable, Identifiable {
-        public var id: String { noteName }
-
-        /// Note name (e.g., "C4", "D#5")
-        public let noteName: String
-
-        /// MIDI note number
-        public let midiNoteNumber: Int
-
-        /// Frequency in Hz
-        public let frequency: Double
-
-        /// Average deviation in cents (signed: + = sharp, - = flat)
-        public let averageDeviationCents: Double
-
-        /// Standard deviation of pitch deviation
-        public let deviationStdDev: Double
-
-        /// Number of occurrences (how many times this note appeared)
-        public let occurrenceCount: Int
-
-        /// Total sample count across all occurrences
-        public let sampleCount: Int
-
-        public init(
-            noteName: String,
-            midiNoteNumber: Int,
-            frequency: Double,
-            averageDeviationCents: Double,
-            deviationStdDev: Double,
-            occurrenceCount: Int,
-            sampleCount: Int
-        ) {
-            self.noteName = noteName
-            self.midiNoteNumber = midiNoteNumber
-            self.frequency = frequency
-            self.averageDeviationCents = averageDeviationCents
-            self.deviationStdDev = deviationStdDev
-            self.occurrenceCount = occurrenceCount
-            self.sampleCount = sampleCount
         }
     }
 }

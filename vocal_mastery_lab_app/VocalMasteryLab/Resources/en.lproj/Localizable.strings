@@ -353,6 +353,25 @@
 "statistics.sf_intensity" = "Intensity";
 "statistics.sf_no_data" = "No data available";
 
+// Intonation Statistics
+"statistics.intonation" = "Intonation";
+"statistics.accuracy_rate" = "Accuracy (±20¢)";
+"statistics.excellent_accuracy" = "Excellent (±10¢)";
+
+// Pitch Stability Statistics
+"statistics.pitch_stability" = "Pitch Stability";
+"statistics.avg_fluctuation" = "Avg Fluctuation";
+"statistics.stability_rate" = "Stability Rate";
+"statistics.segments_analyzed" = "Segments Analyzed";
+"statistics.stability_no_data" = "No sustained notes";
+
+// Vocal Range Statistics
+"statistics.range" = "Range";
+"statistics.range_semitones" = "Range Width";
+"statistics.semitones" = "semitones";
+"statistics.center_note" = "Center Note";
+"statistics.most_used_note" = "Most Used Note";
+
 // MARK: - DebugMenuView
 "debug.paywall" = "Premium Plan (Paywall)";
 "debug.subscription_management" = "Subscription Management";
