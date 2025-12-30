@@ -6,8 +6,13 @@ public struct VocalExtractionView: View {
     @StateObject private var viewModel: VocalExtractionViewModel
     @Environment(\.dismiss) private var dismiss
 
-    public init(viewModel: VocalExtractionViewModel) {
+    /// Optional callback when save completes successfully
+    /// Used by RecordingView to navigate to RecordingListView after save
+    var onSaveComplete: (() -> Void)?
+
+    public init(viewModel: VocalExtractionViewModel, onSaveComplete: (() -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onSaveComplete = onSaveComplete
     }
 
     public var body: some View {
@@ -280,7 +285,13 @@ public struct VocalExtractionView: View {
                         Task {
                             let success = await viewModel.saveExtraction()
                             if success {
-                                dismiss()
+                                if let onSaveComplete = onSaveComplete {
+                                    // Custom navigation (e.g., to RecordingListView)
+                                    onSaveComplete()
+                                } else {
+                                    // Default: pop back to previous screen
+                                    dismiss()
+                                }
                             }
                         }
                     }) {

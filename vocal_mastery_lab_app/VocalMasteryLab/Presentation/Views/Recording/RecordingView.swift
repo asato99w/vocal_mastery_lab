@@ -11,6 +11,7 @@ public struct RecordingView: View {
     @State private var timer: Timer?
     @State private var backingPlayerTimer: Timer?
     @State private var extractingRecording: Recording?
+    @State private var navigateToListAfterSave: Bool = false
 
     private let vocalExtractor: VocalExtractorProtocol
     private let extractedAudioRepository: ExtractedAudioRepositoryProtocol
@@ -154,7 +155,25 @@ public struct RecordingView: View {
                     extractor: vocalExtractor,
                     extractedAudioRepository: extractedAudioRepository,
                     audioPlayer: audioPlayer
-                )
+                ),
+                onSaveComplete: {
+                    // Dismiss extraction view and navigate to list
+                    extractingRecording = nil
+                    navigateToListAfterSave = true
+                }
+            )
+        }
+        .navigationDestination(isPresented: $navigateToListAfterSave) {
+            RecordingListView(
+                viewModel: RecordingListViewModel(
+                    recordingRepository: DependencyContainer.shared.recordingRepository,
+                    extractedAudioRepository: DependencyContainer.shared.extractedAudioRepository,
+                    audioPlayer: DependencyContainer.shared.audioPlayer
+                ),
+                audioPlayer: DependencyContainer.shared.audioPlayer,
+                analyzeRecordingUseCase: DependencyContainer.shared.analyzeRecordingUseCase,
+                extractedAudioRepository: DependencyContainer.shared.extractedAudioRepository,
+                vocalExtractor: DependencyContainer.shared.vocalExtractor
             )
         }
     }
