@@ -119,6 +119,15 @@ public class AnalysisViewModel: ObservableObject {
             logger.info("  pitchData.timeStamps.count: \(result.pitchData.timeStamps.count)")
             logger.info("  spectrogramData.timeStamps.count: \(result.spectrogramData.timeStamps.count)")
 
+            // Pre-prepare audio player for instant playback on first tap
+            do {
+                try audioPlayer.prepare(url: audioURL)
+                logger.info("Audio player prepared for instant playback")
+            } catch {
+                logger.warning("Failed to prepare audio player: \(error.localizedDescription)")
+                // Non-fatal: playback will still work, just with initial delay
+            }
+
         } catch {
             logger.error("Analysis failed: \(error.localizedDescription)")
             state = .error(message: error.localizedDescription)
