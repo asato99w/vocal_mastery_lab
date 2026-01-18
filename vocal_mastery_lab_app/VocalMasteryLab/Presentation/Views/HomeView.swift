@@ -20,13 +20,34 @@ public struct HomeView: View {
                 VStack(spacing: 32) {
                     Spacer()
 
-                    // App Logo
-                    Image("LogoImage")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 240, height: 240)
-                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-                        .padding(.bottom, 20)
+                    // App Logo and Title
+                    VStack(spacing: 10) {
+                        Image("LogoImage")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 160, height: 160)
+                            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+
+                        // 1行 + "Lab"にロゴ波線と同じグラデーション
+                        HStack(spacing: 0) {
+                            Text("Vocal Mastery ")
+                                .font(.system(size: 24, weight: .regular, design: .rounded))
+                                .foregroundColor(ColorPalette.text)
+                            Text("Lab")
+                                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.68, green: 0.72, blue: 0.42), // 黄緑/オリーブ
+                                            Color(red: 0.90, green: 0.62, blue: 0.35)  // オレンジ
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        }
+                    }
+                    .padding(.bottom, 24)
 
                     // Menu Buttons
                     VStack(spacing: 20) {
